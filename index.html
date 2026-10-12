@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Animation Gift</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Dancing+Script:wght@600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #fff6f7;
+    --bg-2: #fde9ec;
+    --card: #ffffff;
+    --text: #3a2a2e;
+    --muted: #8a7176;
+    --accent: #e0607a;
+    --line: #f3d7dc;
+    --shadow: 0 6px 22px rgba(170, 90, 110, .12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1316; --bg-2: #241a1e; --card: #261c20; --text: #f5e9ec;
+      --muted: #b49ea4; --accent: #f07c93; --line: #3a2b30; --shadow: 0 6px 22px rgba(0, 0, 0, .35);
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100dvh;
+    background: radial-gradient(ellipse 90% 60% at 50% 0%, var(--bg-2), var(--bg) 70%) fixed, var(--bg);
+    color: var(--text);
+    font-family: "Be Vietnam Pro", system-ui, sans-serif;
+    padding: max(28px, env(safe-area-inset-top)) 16px 40px;
+  }
+  header { max-width: 960px; margin: 0 auto 28px; text-align: center; }
+  h1 { font-family: "Dancing Script", cursive; font-weight: 600; font-size: clamp(38px, 9vw, 56px); color: var(--accent); line-height: 1.1; }
+  header p { color: var(--muted); margin-top: 6px; font-size: 15px; }
+
+  .grid {
+    max-width: 960px; margin: 0 auto;
+    display: grid; gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr));
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column;
+    transition: transform .25s ease, box-shadow .25s ease;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(170, 90, 110, .2); }
+  .thumb {
+    position: relative; aspect-ratio: 16 / 10;
+    display: grid; place-items: center;
+    overflow: hidden;
+    text-decoration: none;
+  }
+  .phone {
+    height: 86%; aspect-ratio: 1 / 2;
+    border-radius: 14px; overflow: hidden;
+    border: 3px solid #1d1719;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .25);
+    background: #1d1719;
+    transition: transform .3s ease;
+  }
+  .phone img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .card:hover .phone { transform: translateY(-4px) rotate(-1.5deg); }
+  .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .body h2 { font-size: 17px; font-weight: 600; }
+  .body p { font-size: 14px; color: var(--muted); line-height: 1.5; flex: 1; }
+  .path { font-family: ui-monospace, Consolas, monospace; font-size: 12.5px; color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 8px; }
+  .btn {
+    flex: 1; text-align: center;
+    padding: 9px 12px; border-radius: 10px;
+    font: 500 14px "Be Vietnam Pro", sans-serif;
+    text-decoration: none; cursor: pointer;
+    border: 1px solid var(--accent);
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: transparent; color: var(--accent); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* nền thumbnail theo từng loại */
+  .t-envelope { background: radial-gradient(ellipse at 50% 45%, #fff, #f6dde2); }
+  .t-galaxy   { background: radial-gradient(ellipse at 50% 50%, #241a3a, #07060d); }
+  .t-lovedays { background: linear-gradient(#fff4f6, #fbe1e7); }
+  .t-memories { background: linear-gradient(135deg, #fde7ec, #f4dcf3); }
+  .t-heart    { background: radial-gradient(ellipse at 50% 50%, #4a1446, #0b0410); }
+  .t-matrix   { background: #0a0614; }
+
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px);
+    background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px;
+    opacity: 0; transition: .25s; pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Animation Gift</h1>
+  <p>Chọn một kiểu quà tặng để xem trước hoặc sao chép link gửi người thương 💌</p>
+</header>
+
+<main class="grid" id="grid"></main>
+<div class="toast" id="toast">Đã sao chép link</div>
+
+<script>
+const GIFTS = [
+  {
+    slug: "envelope-letter", cls: "t-envelope",
+    title: "Thư tay 20/10",
+    desc: "Phong bì hồng mở nắp, thiệp \"Happy Womenday\" trồi lên cùng hoa cẩm chướng, rồi chuyển sang lá thư tự cuộn kèm ảnh polaroid."
+  },
+  {
+    slug: "galaxy-text", cls: "t-galaxy",
+    title: "Đồng ý làm vợ anh nhé",
+    desc: "Không gian sao đêm với hàng trăm dòng chữ phát sáng và trái tim đỏ trôi 3D, chữ lớn lần lượt hiện lên lời cầu hôn."
+  },
+  {
+    slug: "love-days", cls: "t-lovedays",
+    title: "Trái tim yêu thương",
+    desc: "Chạm để rót đầy trái tim, đếm từng ngày bên nhau và mở ra bức ảnh kỷ niệm."
+  },
+  {
+    slug: "memories", cls: "t-memories",
+    title: "Kỷ niệm của chúng mình",
+    desc: "Một chiếc hộp kỷ niệm nhỏ có mật mã riêng, gồm bộ đếm ngày yêu, album ảnh, lá thư tay và một ván cờ caro bằng trái tim."
+  },
+  {
+    slug: "heart-photo", cls: "t-heart",
+    title: "Trái tim kỉ niệm",
+    desc: "Trái tim 3D từ ngàn trái tim nhỏ lấp lánh bay ra, kèm lời chúc và ảnh đôi trong lòng trái tim."
+  },
+  {
+    slug: "matrix-text", cls: "t-matrix",
+    title: "Lời nhắn ma trận",
+    desc: "Mưa chữ ma trận tím, từng lời nhắn ghép từ hàng nghìn hạt sáng rồi tan thành lời tiếp theo, khép lại bằng trái tim hồng lấp lánh."
+  },
+];
+
+const isFile = location.protocol === "file:";
+const hrefOf = slug => isFile ? `templates/${slug}/index.html` : `./templates/${slug}/`;
+
+const grid = document.getElementById("grid");
+grid.innerHTML = GIFTS.map(g => `
+  <article class="card">
+    <a class="thumb ${g.cls}" href="${hrefOf(g.slug)}" aria-label="Mở ${g.title}"><span class="phone"><img src="assets/thumbs/${g.slug}.jpg" alt="" loading="lazy"></span></a>
+    <div class="body">
+      <h2>${g.title}</h2>
+      <p>${g.desc}</p>
+      <span class="path">/templates/${g.slug}/</span>
+      <div class="actions">
+        <a class="btn primary" href="${hrefOf(g.slug)}">Xem</a>
+        <button class="btn ghost" data-copy="${g.slug}">Sao chép link</button>
+      </div>
+    </div>
+  </article>`).join("");
+
+
+const toast = document.getElementById("toast");
+grid.addEventListener("click", async e => {
+  const b = e.target.closest("[data-copy]");
+  if (!b) return;
+  const url = new URL(hrefOf(b.dataset.copy), location.href).href;
+  try { await navigator.clipboard.writeText(url); toast.textContent = "Đã sao chép link"; }
+  catch { toast.textContent = url; }
+  toast.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => toast.classList.remove("show"), 1800);
+});
+</script>
+</body>
+</html>
