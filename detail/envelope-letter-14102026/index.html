@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Kỉ niệm ngày cưới 14/10</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,6 +26,7 @@
     font-family: "Patrick Hand", "Comic Sans MS", cursive;
     color: var(--ink);
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
     user-select: none;
   }
   #stage {
@@ -304,6 +307,7 @@ const CONFIG = {
   photo: "../../assets/data/detail/envelope-letter-14102026/photo.jpg",
   music: "../../assets/data/detail/envelope-letter-14102026/music.mp3",   // phát khi người nhận chạm mở thư
   autoOpenMs: 3500,            // tự mở sau x ms nếu không chạm (0 = chỉ mở khi chạm)
+  fullscreenOnOpen: true,      // bật toàn màn hình ở lần chạm đầu tiên; chạm đúp để bật/tắt (iPhone không hỗ trợ)
   scrollSpeed: 20,             // tốc độ tự cuộn lá thư (px/giây)
   letter: [
     "Gửi vợ anh,",
@@ -437,6 +441,13 @@ if (CONFIG.photo) {
 const music = document.getElementById("music");
 if (CONFIG.music) music.src = CONFIG.music;
 
+function playMusic() {
+  if (!CONFIG.music || !music.paused) return;
+  music.play().catch(() => {});      // bị chặn khi chưa có thao tác chạm -> thử lại ở lần chạm sau
+}
+// lần chạm đầu tiên ở bất kỳ đâu sẽ bật nhạc (trình duyệt chỉ cho phát sau thao tác của người xem)
+["pointerdown", "touchend", "keydown"].forEach(ev => document.addEventListener(ev, playMusic, { passive: true }));
+
 // ---------- Dòng thời gian ----------
 const env = document.getElementById("env");
 const envScene = document.getElementById("envScene");
@@ -448,7 +459,7 @@ let opened = false;
 async function openEnvelope(fromTap) {
   if (opened) return;
   opened = true;
-  if (fromTap && CONFIG.music) music.play().catch(() => {});
+  if (fromTap) { playMusic(); autoFullscreen(); }
   hint.style.animation = "none"; hint.style.opacity = 0;
 
   env.classList.add("open");          // lật nắp, tim chạy lên đỉnh nắp
@@ -470,6 +481,45 @@ async function openEnvelope(fromTap) {
 env.addEventListener("click", () => openEnvelope(true));
 document.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") openEnvelope(true); });
 if (CONFIG.autoOpenMs > 0) setTimeout(() => openEnvelope(false), 1200 + CONFIG.autoOpenMs);
+
+// ---------- Toàn màn hình: chạm lần đầu để bật, chạm đúp để bật/tắt (iPhone Safari không hỗ trợ) ----------
+const root = document.documentElement;
+const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsAutoTried = false, lastFsRequest = 0, lastTap = { t: 0, x: 0, y: 0 };
+
+function enterFullscreen() {
+  if (!fsSupported || isFullscreen()) return;
+  lastFsRequest = performance.now();
+  try {
+    const r = root.requestFullscreen ? root.requestFullscreen({ navigationUI: "hide" }) : root.webkitRequestFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function exitFullscreen() {
+  lastFsRequest = performance.now();
+  try {
+    const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function autoFullscreen() {
+  if (fsAutoTried || !CONFIG.fullscreenOnOpen) return;
+  fsAutoTried = true;
+  enterFullscreen();
+}
+document.addEventListener("click", e => {
+  if (e.target.closest(".like")) return;          // bấm tim liên tục không tính là chạm đúp
+  const now = performance.now();
+  const isDouble = now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40;
+  lastTap = isDouble ? { t: 0, x: 0, y: 0 } : { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble) {
+    // bỏ qua nếu vừa bật ở cú chạm đầu tiên (tránh bật rồi tắt ngay)
+    if (fsSupported && now - lastFsRequest > 600) isFullscreen() ? exitFullscreen() : enterFullscreen();
+  } else {
+    autoFullscreen();                             // thư tự mở mà chưa chạm -> cú chạm đầu tiên bật toàn màn hình
+  }
+});
 
 // ---------- Thả tim: tim chuyển đỏ + icon bay lên từ điểm nhấn ----------
 const like = document.getElementById("like");
