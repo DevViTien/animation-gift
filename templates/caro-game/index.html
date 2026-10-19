@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f9eef4">
+<title>Caro Game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap&subset=vietnamese" rel="stylesheet">
+<style>
+  :root {
+    --cg-ink: #d9506f;        /* chữ tiêu đề / trạng thái */
+    --cg-red: #e0313f;        /* tim & dấu X */
+    --cg-bg1: #fbf4f8;
+    --cg-bg2: #f5e6ee;
+    --cg-line: rgba(255, 255, 255, .96);
+    --cg-hand: "Patrick Hand", "Comic Sans MS", cursive;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: #eedde5;
+    font-family: var(--cg-hand);
+    color: var(--cg-ink);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+  /* khung điện thoại: full màn hình trên mobile, cột giữa trên desktop */
+  .cg-app {
+    position: relative;
+    width: 100%; max-width: 480px;
+    height: 100dvh;
+    margin: 0 auto;
+    overflow: hidden;
+    background: linear-gradient(170deg, var(--cg-bg1) 0%, #f8edf3 45%, var(--cg-bg2) 100%);
+  }
+  @media (min-width: 560px) { .cg-app { box-shadow: 0 0 40px rgba(170, 110, 135, .18); } }
+
+  /* lớp phủ hơi tối khi ăn mừng (như video) */
+  .cg-veil { position: absolute; inset: 0; background: rgba(120, 90, 115, .11); opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .cg-app.cg-party .cg-veil { opacity: 1; }
+
+  .cg-wrap {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: calc(20px + env(safe-area-inset-top)) 20px calc(6dvh + env(safe-area-inset-bottom));
+  }
+  .cg-title { font-weight: 400; font-size: 22px; line-height: 1.3; min-height: 1.3em; text-align: center; letter-spacing: .2px; animation: cgFadeUp .6s ease both; }
+  .cg-title.cg-pop { animation: cgPopT .45s ease; }
+  @keyframes cgPopT { 40% { transform: scale(1.16); } }
+  @keyframes cgFadeUp { from { opacity: 0; transform: translateY(8px); } }
+
+  .cg-board {
+    --B: min(70vw, 300px, 40dvh);
+    position: relative;
+    width: var(--B); aspect-ratio: 1;
+    margin-top: 3.2dvh;
+    display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+    animation: cgFadeUp .6s ease .1s both;
+  }
+  .cg-grid { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; filter: drop-shadow(0 0 1.2px rgba(205, 160, 180, .75)); }
+  .cg-grid line { stroke: var(--cg-line); stroke-width: 2; vector-effect: non-scaling-stroke; }
+  .cg-cell { position: relative; display: grid; place-items: center; outline: none; z-index: 1; }
+  .cg-cell:focus-visible::after { content: ""; position: absolute; inset: 10%; border-radius: 10px; box-shadow: 0 0 0 2px rgba(224, 49, 63, .45); }
+  .cg-cell svg { width: 44%; height: 44%; overflow: visible; display: block; }
+  .cg-cell .cg-h { animation: cgMark .32s cubic-bezier(.3, 1.6, .5, 1); }
+  .cg-cell .cg-x { width: 38%; height: 38%; }
+  .cg-x path { stroke: var(--cg-red); stroke-width: 1.7; stroke-linecap: round; fill: none; stroke-dasharray: 30; stroke-dashoffset: 30; animation: cgDash .2s ease-out forwards; }
+  .cg-x path + path { animation-delay: .12s; }
+  @keyframes cgMark { from { transform: scale(0); } }
+  @keyframes cgDash { to { stroke-dashoffset: 0; } }
+
+  .cg-strike { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; z-index: 2; filter: drop-shadow(0 0 1.5px rgba(190, 120, 150, .55)); }
+  .cg-strike line { stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 520; stroke-dashoffset: 520; opacity: 0; }
+  .cg-strike.cg-on line { opacity: 1; stroke-dashoffset: 0; transition: stroke-dashoffset .35s ease-out; }
+
+  .cg-msg {
+    position: absolute; left: -16%; right: -16%; top: 50%;
+    z-index: 3;
+    text-align: center;
+    font-size: calc(var(--B) * .082);
+    line-height: 1.25;
+    color: rgba(255, 255, 255, .97);
+    text-shadow: 0 0 6px rgba(214, 110, 140, .55), 0 1px 2px rgba(190, 90, 120, .45);
+    transform: translateY(-50%) rotate(-6deg) scale(.7);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .cg-msg.cg-show { opacity: 1; transform: translateY(-50%) rotate(-6deg) scale(1); transition: opacity .2s, transform .35s cubic-bezier(.3, 1.5, .5, 1); }
+
+  .cg-status { margin-top: 3.4dvh; font-size: 15px; min-height: 22px; display: flex; align-items: center; gap: 6px; animation: cgFadeUp .6s ease .2s both; }
+  .cg-status svg { width: 14px; height: 13px; display: block; }
+  .cg-status b { font-weight: 400; font-size: 16px; color: var(--cg-red); }
+  .cg-again {
+    margin-top: 2.6dvh; padding: 9px 26px; border-radius: 999px;
+    background: linear-gradient(#f5a3b6, #ec8aa1);
+    color: #fff; font-size: 15px; letter-spacing: .3px;
+    box-shadow: 0 6px 14px rgba(232, 108, 137, .28);
+    opacity: 0; transform: scale(.8); pointer-events: none;
+    transition: opacity .25s, transform .35s cubic-bezier(.3, 1.5, .5, 1);
+  }
+  .cg-again.cg-show { opacity: 1; transform: none; pointer-events: auto; }
+  .cg-again:active { transform: scale(.95); }
+  .cg-again:focus-visible { outline: 2px solid #e0566f; outline-offset: 3px; }
+
+  /* tim bay khi thắng */
+  .cg-fx { position: absolute; inset: 0; pointer-events: none; z-index: 20; overflow: hidden; }
+  .cg-p { position: absolute; left: 0; top: 0; width: 16px; height: 15px; will-change: transform, opacity; }
+  .cg-p svg { width: 100%; height: 100%; display: block; overflow: visible; }
+
+  /* phần thưởng (tuỳ chọn) */
+  .cg-reward {
+    position: absolute; inset: 0; z-index: 30;
+    display: grid; place-items: center;
+    background: rgba(90, 50, 70, .28);
+    opacity: 0; pointer-events: none; transition: opacity .35s;
+  }
+  .cg-reward.cg-show { opacity: 1; pointer-events: auto; }
+  .cg-card {
+    width: min(78%, 300px);
+    background: #fffdfd; border-radius: 6px;
+    padding: 14px 14px 18px;
+    box-shadow: 0 16px 36px rgba(110, 50, 75, .3);
+    text-align: center; color: #b4475f; font-size: 18px; line-height: 1.35;
+    transform: rotate(-3deg) scale(.85); transition: transform .5s cubic-bezier(.3, 1.5, .5, 1);
+  }
+  .cg-reward.cg-show .cg-card { transform: rotate(-3deg) scale(1); }
+  .cg-card img { display: block; width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; margin-bottom: 12px; background: #f6dfe6; }
+  .cg-card small { display: block; margin-top: 10px; font-size: 13px; color: #c98a99; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+  }
+</style>
+</head>
+<body>
+<div class="cg-app" id="app">
+  <div class="cg-veil"></div>
+  <main class="cg-wrap">
+    <h1 class="cg-title" id="title"></h1>
+    <div class="cg-board" id="board" role="grid" aria-label="Bàn cờ caro 3×3">
+      <svg class="cg-grid" viewBox="0 0 300 300" preserveAspectRatio="none" aria-hidden="true">
+        <line x1="100" y1="0" x2="100" y2="300"/><line x1="200" y1="0" x2="200" y2="300"/>
+        <line x1="0" y1="100" x2="300" y2="100"/><line x1="0" y1="200" x2="300" y2="200"/>
+      </svg>
+      <svg class="cg-strike" id="strike" viewBox="0 0 300 300" aria-hidden="true"><line id="strikeLine" x1="0" y1="0" x2="0" y2="0"/></svg>
+      <div class="cg-msg" id="msg" aria-live="polite"></div>
+    </div>
+    <p class="cg-status" id="status" aria-live="polite"></p>
+    <button class="cg-again" id="again" type="button"></button>
+  </main>
+  <div class="cg-fx" id="fx"></div>
+  <div class="cg-reward" id="reward" aria-hidden="true"><div class="cg-card" id="rewardCard"></div></div>
+</div>
+
+<audio id="music" loop preload="auto"></audio>
+
+<script>
+/* ======================= CẤU HÌNH — sửa ở đây ======================= */
+const CONFIG = {
+  title: "Caro Game",                       // tiêu đề lúc đang chơi
+  player: "heart",                          // quân của người chơi: "heart" (tim đỏ) hoặc 1 emoji bất kỳ, ví dụ "🌷"
+  computer: "x",                            // quân của máy: "x" (dấu ✕ đỏ) hoặc 1 emoji, ví dụ "🐷"
+  playerFirst: true,                        // true = người chơi đi trước
+  difficulty: "easy",                       // "easy" (máy nhường, gần như luôn thắng) | "normal" | "hard" (không thể thắng)
+  computerDelayMs: 650,                     // máy "suy nghĩ" bao lâu trước khi đánh
+
+  nextLabel: "Người chơi tiếp theo:",
+  winnerLabel: "Người thắng cuộc:",
+  replay: "Chơi lại",
+
+  winTitle: "Bạn đã thắng",
+  winText: "Người thắng được hun má nè 🤍", // dòng chữ trắng hiện chéo trên bàn cờ
+  loseTitle: "Ui, máy thắng mất rồi",
+  loseText: "Thua thì… chơi lại nha 😝",
+  drawTitle: "Hòa rồi nè",
+  drawText: "Ngang tài ngang sức ghê",
+  drawStatus: "Không ai thắng, thử lại nha ♡",
+
+  celebrateMs: 5000,                        // thời gian ăn mừng (tim bay + chữ trên bàn cờ) khi thắng
+
+  // Phần thưởng hiện ra sau khi ăn mừng xong (để trống cả hai nếu không cần)
+  reward: {
+    text: "",                               // ví dụ "Phần thưởng: 1 buổi hẹn hò do em chọn 💝"
+    photo: ""                               // ví dụ "photo.jpg" (đặt cạnh index.html)
+  },
+
+  music: "",                                // ví dụ "music.mp3" — phát ở lần chạm đầu tiên
+  fullscreenOnOpen: true                    // chạm lần đầu bật toàn màn hình; chạm đúp (ngoài bàn cờ) để bật/tắt
+};
+/* =================================================================== */
+
+const $ = s => document.querySelector(s);
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ---------- Quân cờ ----------
+const HEART_D = "M12 21.2c-.4 0-.8-.15-1.1-.42C6.3 16.7 2 13.1 2 8.6 2 5.5 4.4 3 7.4 3c1.9 0 3.6 1 4.6 2.6C13 4 14.7 3 16.6 3 19.6 3 22 5.5 22 8.6c0 4.5-4.3 8.1-8.9 12.18-.3.27-.7.42-1.1.42z";
+const heartSvg = (cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><path d="${HEART_D}" fill="#e0313f"/></svg>`;
+const xSvg = () => `<svg class="cg-x" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18"/><path d="M21 3L3 21"/></svg>`;
+const emojiSvg = (e, cls = "") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true"><text x="12" y="13" text-anchor="middle" dominant-baseline="central" font-size="21">${esc(e)}</text></svg>`;
+
+function pieceHtml(who) {
+  const kind = who === "P" ? CONFIG.player : CONFIG.computer;
+  if (kind === "heart") return heartSvg("cg-h");
+  if (kind === "x") return xSvg();
+  return emojiSvg(kind, "cg-h");
+}
+function pieceIcon(who) {   // biểu tượng nhỏ cạnh dòng trạng thái
+  const kind = who === "P" ? CONFIG.player : CONFIG.computer;
+  if (kind === "heart") return heartSvg();
+  if (kind === "x") return "<b>✕</b>";
+  return `<b>${esc(kind)}</b>`;
+}
+
+// ---------- Dựng giao diện ----------
+const app = $("#app"), board = $("#board"), titleEl = $("#title"), statusEl = $("#status"), again = $("#again");
+const strike = $("#strike"), strikeLine = $("#strikeLine"), msg = $("#msg"), fx = $("#fx"), reward = $("#reward");
+again.textContent = CONFIG.replay;
+document.title = CONFIG.title;
+
+const cells = [...Array(9)].map((_, i) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "cg-cell";
+  b.setAttribute("role", "gridcell");
+  b.setAttribute("aria-label", `Ô ${i + 1}, trống`);
+  board.insertBefore(b, strike);
+  return b;
+});
+
+const LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+let state, over, busy, gameId = 0, partyTimer = 0, burstTimer = 0, rewardTimer = 0;
+
+function winnerLine(s) { for (const l of LINES) if (s[l[0]] && s[l[0]] === s[l[1]] && s[l[1]] === s[l[2]]) return l; return null; }
+function setStatus(label, who) { statusEl.innerHTML = `${esc(label)} ${pieceIcon(who)}`; }
+function popTitle(text) {
+  titleEl.textContent = text;
+  titleEl.classList.remove("cg-pop"); void titleEl.offsetWidth; titleEl.classList.add("cg-pop");
+}
+
+function newGame() {
+  gameId++;
+  state = Array(9).fill(""); over = false; busy = false;
+  stopParty();
+  clearTimeout(rewardTimer); hideReward();
+  cells.forEach((c, i) => { c.innerHTML = ""; c.setAttribute("aria-label", `Ô ${i + 1}, trống`); });
+  strike.classList.remove("cg-on");
+  msg.classList.remove("cg-show");
+  again.classList.remove("cg-show");
+  titleEl.textContent = CONFIG.title;
+  if (CONFIG.playerFirst) setStatus(CONFIG.nextLabel, "P");
+  else computerTurn(gameId);
+}
+
+function place(i, who) {
+  state[i] = who;
+  cells[i].innerHTML = pieceHtml(who);
+  cells[i].setAttribute("aria-label", `Ô ${i + 1}, ${who === "P" ? "của bạn" : "của máy"}`);
+}
+
+// ---------- Máy đánh ----------
+function findLineMove(s, who) {      // ô giúp `who` hoàn thành 3 quân
+  for (const l of LINES) {
+    const v = l.map(i => s[i]);
+    if (v.filter(x => x === who).length === 2 && v.includes("")) return l[v.indexOf("")];
+  }
+  return -1;
+}
+function minimax(s, turn) {
+  const w = winnerLine(s);
+  if (w) return { score: s[w[0]] === "C" ? 10 : -10 };
+  const free = s.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+  if (!free.length) return { score: 0 };
+  let best = { score: turn === "C" ? -99 : 99, move: free[0] };
+  for (const i of free) {
+    s[i] = turn;
+    const r = minimax(s, turn === "C" ? "P" : "C").score * .95;
+    s[i] = "";
+    if (turn === "C" ? r > best.score : r < best.score) best = { score: r, move: i };
+  }
+  return best;
+}
+function aiMove() {
+  const free = state.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const d = CONFIG.difficulty;
+  if (d === "hard") return minimax(state.slice(), "C").move;
+  if (d === "normal") {
+    let m = findLineMove(state, "C"); if (m >= 0) return m;
+    m = findLineMove(state, "P"); if (m >= 0 && Math.random() < .85) return m;
+    if (!state[4] && Math.random() < .6) return 4;
+    return pick(free);
+  }
+  // easy: máy "nhường" — thỉnh thoảng mới chặn, không bao giờ cố thắng
+  if (Math.random() < .3) { const m = findLineMove(state, "P"); if (m >= 0) return m; }
+  const safe = free.filter(i => { const t = state.slice(); t[i] = "C"; return !winnerLine(t); });
+  const pool = safe.length ? safe : free;
+  if (pool.includes(4) && Math.random() < .4) return 4;
+  return pick(pool);
+}
+
+async function computerTurn(id) {
+  busy = true;
+  setStatus(CONFIG.nextLabel, "C");
+  await wait(reduced ? 150 : CONFIG.computerDelayMs * (.8 + Math.random() * .5));
+  if (id !== gameId || over) return;
+  place(aiMove(), "C");
+  busy = false;
+  if (checkEnd()) return;
+  setStatus(CONFIG.nextLabel, "P");
+}
+
+function checkEnd() {
+  const w = winnerLine(state);
+  if (w) { finish(w, state[w[0]]); return true; }
+  if (!state.includes("")) { finish(null, ""); return true; }
+  return false;
+}
+
+cells.forEach((c, i) => c.addEventListener("click", e => {
+  if (over) { celebrateTap(e); return; }
+  if (busy || state[i]) return;
+  place(i, "P");
+  if (navigator.vibrate) navigator.vibrate(10);
+  if (checkEnd()) return;
+  computerTurn(gameId);
+}));
+
+// ---------- Kết thúc ván ----------
+function drawStrike(line) {
+  const c = i => [50 + (i % 3) * 100, 50 + Math.floor(i / 3) * 100];
+  const a = c(line[0]), b = c(line[2]);
+  const ext = .3, dx = (b[0] - a[0]) * ext, dy = (b[1] - a[1]) * ext;
+  strikeLine.setAttribute("x1", a[0] - dx); strikeLine.setAttribute("y1", a[1] - dy);
+  strikeLine.setAttribute("x2", b[0] + dx); strikeLine.setAttribute("y2", b[1] + dy);
+  strike.classList.remove("cg-on"); void strike.getBoundingClientRect();
+  strike.classList.add("cg-on");
+}
+
+function finish(line, who) {
+  over = true; busy = false;
+  if (line) drawStrike(line);
+  const won = who === "P", lost = who === "C";
+  popTitle(won ? CONFIG.winTitle : lost ? CONFIG.loseTitle : CONFIG.drawTitle);
+  if (who) setStatus(CONFIG.winnerLabel, who); else statusEl.textContent = CONFIG.drawStatus;
+  msg.textContent = won ? CONFIG.winText : lost ? CONFIG.loseText : CONFIG.drawText;
+  msg.classList.toggle("cg-show", !!msg.textContent);
+  again.classList.add("cg-show");
+
+  const id = gameId;
+  if (won) {
+    startParty();
+    if (CONFIG.reward.text || CONFIG.reward.photo) rewardTimer = setTimeout(() => id === gameId && showReward(), CONFIG.celebrateMs + 400);
+  } else {
+    partyTimer = setTimeout(() => { if (id === gameId) msg.classList.remove("cg-show"); }, 3000);
+  }
+}
+
+// ---------- Ăn mừng: tim bung ra liên tục trên bàn cờ ----------
+function startParty() {
+  app.classList.add("cg-party");
+  const r = board.getBoundingClientRect();
+  const spot = () => {   // điểm ngẫu nhiên trên bàn cờ, ưu tiên các ô
+    const i = Math.random() * 9 | 0;
+    return [r.left + ((i % 3) + .5 + (Math.random() - .5) * .7) * r.width / 3,
+            r.top + ((i / 3 | 0) + .5 + (Math.random() - .5) * .7) * r.height / 3];
+  };
+  const loop = () => {
+    burst(...spot(), 18);
+    if (Math.random() < .35) setTimeout(() => app.classList.contains("cg-party") && burst(...spot(), 14), 260);
+    burstTimer = setTimeout(loop, 620 + Math.random() * 380);
+  };
+  burstTimer = setTimeout(loop, reduced ? 0 : 300);
+  partyTimer = setTimeout(stopParty, CONFIG.celebrateMs);
+}
+function stopParty() {
+  clearTimeout(burstTimer); clearTimeout(partyTimer);
+  app.classList.remove("cg-party");
+  msg.classList.remove("cg-show");
+  fx.innerHTML = "";
+}
+function celebrateTap(e) {   // sau khi thắng, chạm vào bàn cờ cũng bung tim
+  if (over && winnerLine(state) && state[winnerLine(state)[0]] === "P") burst(e.clientX, e.clientY, 14);
+}
+board.addEventListener("click", e => { if (over && e.target === board) celebrateTap(e); });
+
+const PCOL = [["#ff8a98", "#e0313f", "#b81d2c"], ["#ff9aa6", "#ea3d50", "#c0202f"], ["#ffa3ae", "#f0566a", "#c92c40"]];
+const pHeart = k => {
+  const [a, b, c] = PCOL[k % PCOL.length];
+  return `<svg viewBox="0 0 24 24"><defs><radialGradient id="cgg${k}" cx=".35" cy=".3" r=".8"><stop offset="0" stop-color="${a}"/><stop offset=".55" stop-color="${b}"/><stop offset="1" stop-color="${c}"/></radialGradient></defs>
+    <path d="${HEART_D}" fill="url(#cgg${k})"/><ellipse cx="7.6" cy="7.6" rx="2.6" ry="1.7" fill="#fff" opacity=".55" transform="rotate(-35 7.6 7.6)"/></svg>`;
+};
+let pSeq = 0;
+function burst(x, y, n) {
+  const base = app.getBoundingClientRect();
+  x -= base.left; y -= base.top;
+  const count = reduced ? Math.min(n, 5) : n;
+  for (let k = 0; k < count; k++) {
+    const p = document.createElement("div");
+    p.className = "cg-p";
+    p.innerHTML = pHeart(pSeq++ % 600);
+    const s = .75 + Math.random() * .65;
+    p.style.width = (16 * s).toFixed(1) + "px"; p.style.height = (15 * s).toFixed(1) + "px";
+    fx.appendChild(p);
+    const a = Math.random() * Math.PI * 2, d = 30 + Math.random() * 70;
+    const tx = Math.cos(a) * d, ty = Math.sin(a) * d * .9;
+    const r1 = (Math.random() - .5) * 60, r2 = r1 + (Math.random() - .5) * 120, fall = 35 + Math.random() * 45;
+    const at = (fx_, fy, sc, rot) => `translate(${x + fx_}px, ${y + fy}px) translate(-50%, -50%) scale(${sc}) rotate(${rot}deg)`;
+    const frames = reduced
+      ? [{ transform: at(0, 0, 1, 0), opacity: 1 }, { transform: at(tx * .4, ty * .4, 1, 0), opacity: 0 }]
+      : [
+          { transform: at(tx * .08, ty * .08, .5, 0), opacity: 0 },
+          { transform: at(tx * .25, ty * .25, 1, r1 * .3), opacity: 1, offset: .08 },
+          { transform: at(tx * .85, ty * .85, 1, r1), opacity: 1, offset: .45 },
+          { transform: at(tx * .95, ty * .95 + fall * .5, .95, (r1 + r2) / 2), opacity: 1, offset: .75 },
+          { transform: at(tx, ty + fall, .85, r2), opacity: 0 }
+        ];
+    p.animate(frames, { duration: 1100 + Math.random() * 600, easing: "cubic-bezier(.2,.7,.35,1)", fill: "both" })
+      .onfinish = () => p.remove();
+  }
+}
+
+// ---------- Phần thưởng (tuỳ chọn) ----------
+function showReward() {
+  const card = $("#rewardCard");
+  card.innerHTML = (CONFIG.reward.photo ? `<img alt="" src="${esc(CONFIG.reward.photo)}">` : "") +
+                   (CONFIG.reward.text ? `<div>${esc(CONFIG.reward.text)}</div>` : "") +
+                   `<small>chạm để đóng</small>`;
+  const img = card.querySelector("img");
+  if (img) img.onerror = () => img.remove();
+  reward.classList.add("cg-show");
+  reward.setAttribute("aria-hidden", "false");
+}
+function hideReward() { reward.classList.remove("cg-show"); reward.setAttribute("aria-hidden", "true"); }
+reward.addEventListener("click", hideReward);
+
+again.addEventListener("click", newGame);
+
+// điều khiển bằng bàn phím: phím số 1–9 đánh vào ô tương ứng, R để chơi lại
+document.addEventListener("keydown", e => {
+  if (/^[1-9]$/.test(e.key)) cells[+e.key - 1].click();
+  else if ((e.key === "r" || e.key === "R") && over) newGame();
+});
+
+// ---------- Nhạc: phát ở lần chạm đầu tiên ----------
+const music = $("#music");
+if (CONFIG.music) music.src = CONFIG.music;
+function playMusic() {
+  if (!CONFIG.music || !music.paused) return;
+  music.play().catch(() => {});      // bị chặn khi chưa có thao tác -> thử lại ở lần chạm sau
+}
+["pointerdown", "touchend", "keydown"].forEach(ev => document.addEventListener(ev, playMusic, { passive: true }));
+
+// ---------- Toàn màn hình: chạm lần đầu để bật, chạm đúp (ngoài bàn cờ/nút) để bật/tắt ----------
+const root = document.documentElement;
+const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsAutoTried = false, lastFsRequest = 0, lastTap = { t: 0, x: 0, y: 0 };
+function enterFullscreen() {
+  if (!fsSupported || isFullscreen()) return;
+  lastFsRequest = performance.now();
+  try {
+    const r = root.requestFullscreen ? root.requestFullscreen({ navigationUI: "hide" }) : root.webkitRequestFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function exitFullscreen() {
+  lastFsRequest = performance.now();
+  try {
+    const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+document.addEventListener("click", e => {
+  if (!fsAutoTried && CONFIG.fullscreenOnOpen) { fsAutoTried = true; enterFullscreen(); }
+  if (e.target.closest(".cg-board, button, .cg-reward")) { lastTap = { t: 0, x: 0, y: 0 }; return; }  // chạm nhanh vào ô cờ là đang chơi
+  const now = performance.now();
+  const isDouble = now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40;
+  lastTap = isDouble ? { t: 0, x: 0, y: 0 } : { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble && fsSupported && now - lastFsRequest > 600) isFullscreen() ? exitFullscreen() : enterFullscreen();
+});
+
+newGame();
+</script>
+</body>
+</html>

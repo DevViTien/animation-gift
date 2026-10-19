@@ -1,0 +1,656 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Chúc mừng 20/10</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Mali:wght@500;600;700&display=swap&subset=vietnamese" rel="stylesheet">
+<style>
+  :root {
+    --ps-bg: #f6ece7;
+    --ps-card: #fffaf7;
+    --ps-ink: #3a2c29;
+    --ps-dot: #d6c3b9;
+    --ps-rose: #e8607c;
+    --ps-soft: #9a7f77;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--ps-bg);
+    font-family: "Mali", "Comic Sans MS", cursive;
+    color: var(--ps-ink);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ps-stage {
+    position: fixed; inset: 0;
+    height: 100dvh;
+    background:
+      radial-gradient(ellipse 90% 55% at 50% 0%, #fbf3ef 0%, transparent 70%),
+      radial-gradient(ellipse 90% 50% at 50% 100%, #f3e2db 0%, transparent 75%),
+      var(--ps-bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: clamp(10px, 2.2dvh, 18px);
+    padding: max(14px, env(safe-area-inset-top)) 16px max(14px, env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+  .ps-col {
+    /* chiều rộng thẻ: vừa màn hình điện thoại, 2 thẻ vuông luôn vừa chiều cao */
+    --W: min(calc(100vw - 48px), 380px, calc((100dvh - 120px) / 2));
+    width: var(--W);
+    display: flex; flex-direction: column; align-items: center;
+    gap: clamp(10px, 2.2dvh, 18px);
+  }
+  .ps-card {
+    width: 100%;
+    background: var(--ps-card);
+    border-radius: 14px;
+    padding: calc(var(--W) * .03);
+    box-shadow: 0 1px 2px rgba(120, 80, 70, .08), 0 8px 22px rgba(120, 80, 70, .12);
+    opacity: 0; transform: translateY(18px);
+    animation: psIn .7s cubic-bezier(.2,.8,.25,1) forwards;
+  }
+  .ps-card.ps-play { animation-delay: .12s; }
+  @keyframes psIn { to { opacity: 1; transform: none; } }
+
+  /* ---------- Ảnh mẫu + chú thích ---------- */
+  .ps-ref {
+    width: 100%; aspect-ratio: 1;
+    border-radius: 10px;
+    background: #efe4dd center / cover no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.04);
+  }
+  .ps-cap {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: calc(var(--W) * .025) 4px 0;
+    font-weight: 700;
+    font-size: clamp(12px, calc(var(--W) * .042), 16px);
+    line-height: 1.25;
+  }
+  .ps-timer {
+    flex: none;
+    font-size: .85em; font-weight: 600; color: var(--ps-soft);
+    font-variant-numeric: tabular-nums;
+    padding: 1px 8px; border-radius: 99px; background: #f4e8e2;
+    transition: color .3s, background .3s;
+  }
+  .ps-timer.ps-over { color: #fff; background: #e9a1ae; }
+
+  /* ---------- Khung ghép ---------- */
+  .ps-board {
+    position: relative;
+    width: 100%; aspect-ratio: 1;
+    border-radius: 8px;
+    background-color: #fdf8f5;
+    background-size: cover; background-position: center;
+    touch-action: none;
+  }
+  .ps-ghost { /* ảnh mờ gợi ý bên dưới các ô */
+    position: absolute; inset: 0; border-radius: 8px;
+    background: center / cover no-repeat;
+    pointer-events: none;
+    transition: opacity .6s ease;
+  }
+  .ps-grid { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transition: opacity .6s ease; overflow: visible; }
+  .ps-grid line, .ps-grid rect { stroke: var(--ps-dot); stroke-width: 1.6; stroke-dasharray: 1.6 4.2; stroke-linecap: round; fill: none; vector-effect: non-scaling-stroke; }
+
+  .ps-piece {
+    position: absolute; left: 0; top: 0;
+    background-repeat: no-repeat;
+    touch-action: none;
+    cursor: grab;
+    will-change: transform;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.45), 0 2px 7px rgba(60, 35, 30, .22);
+    transition: box-shadow .25s ease, filter .25s ease;
+  }
+  .ps-piece.ps-anim { transition: transform .5s cubic-bezier(.3,1.25,.45,1), box-shadow .3s ease; }
+  .ps-piece.ps-snap { transition: transform .32s cubic-bezier(.3,1.5,.5,1), box-shadow .3s ease; }
+  .ps-piece.ps-drag {
+    cursor: grabbing;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.5), 0 12px 24px rgba(60, 35, 30, .3);
+    filter: brightness(1.03);
+  }
+  .ps-piece.ps-placed {
+    cursor: default; pointer-events: none;
+    box-shadow: inset 0 0 0 .5px rgba(255,255,255,.35);
+  }
+  .ps-piece.ps-pop { animation: psPop .38s ease-out; }
+  @keyframes psPop { 0% { filter: brightness(1.25); } 100% { filter: brightness(1); } }
+
+  .ps-board.ps-solved .ps-grid, .ps-board.ps-solved .ps-ghost { opacity: 0; }
+  .ps-board.ps-solved .ps-piece { box-shadow: none; transition: box-shadow .6s ease; }
+  .ps-full { /* ảnh nguyên vẹn phủ lên khi ghép xong (xoá đường nối giữa các mảnh) */
+    position: absolute; inset: 0; z-index: 900; border-radius: 8px;
+    background: center / cover no-repeat;
+    opacity: 0; pointer-events: none; transition: opacity .5s ease;
+  }
+  .ps-board.ps-solved .ps-full { opacity: 1; }
+  .ps-shine { z-index: 901; /* vệt sáng quét qua khi ghép xong */
+    position: absolute; inset: 0; border-radius: 8px; overflow: hidden; pointer-events: none;
+  }
+  .ps-shine::before {
+    content: ""; position: absolute; top: -20%; bottom: -20%; width: 40%; left: -60%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,.65), transparent);
+    transform: skewX(-12deg);
+  }
+  .ps-board.ps-solved .ps-shine::before { animation: psShine 1.1s ease .15s; }
+  @keyframes psShine { to { left: 130%; } }
+  .ps-board.ps-solved { animation: psBeat 1s ease .1s; }
+  @keyframes psBeat { 0%,100% { transform: scale(1); } 30% { transform: scale(1.035); } 55% { transform: scale(.99); } }
+
+  .ps-hint {
+    text-align: center;
+    font-size: 14px; font-weight: 500; color: #b17a82;
+    opacity: 0;
+    animation: psFade .6s ease 1.6s forwards, psPulse 1.8s ease-in-out 2.2s infinite;
+    transition: opacity .4s;
+    min-height: 1.2em;
+  }
+  .ps-hint.ps-gone { animation: none; opacity: 0; }
+  @keyframes psFade { to { opacity: 1; } }
+  @keyframes psPulse { 50% { opacity: .45; } }
+
+  /* ---------- Hộp chúc mừng ---------- */
+  .ps-modal {
+    position: fixed; inset: 0; z-index: 30;
+    display: grid; place-items: center;
+    padding: 16px;
+    background: rgba(70, 40, 40, .28);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none;
+    transition: opacity .45s ease;
+  }
+  .ps-modal.ps-show { opacity: 1; pointer-events: auto; }
+  .ps-sheet {
+    width: min(100%, 340px);
+    max-height: calc(100dvh - 32px); overflow-y: auto;
+    background: var(--ps-card);
+    border-radius: 20px;
+    padding: 22px 20px 18px;
+    text-align: center;
+    box-shadow: 0 20px 50px rgba(80, 40, 40, .28);
+    transform: translateY(30px) scale(.9);
+    transition: transform .6s cubic-bezier(.25,1.4,.5,1);
+  }
+  .ps-modal.ps-show .ps-sheet { transform: none; }
+  .ps-big { font-size: 46px; line-height: 1; display: inline-block; animation: psHeart 1.3s ease-in-out infinite; }
+  @keyframes psHeart { 0%,100% { transform: scale(1); } 15% { transform: scale(1.22); } 30% { transform: scale(1); } 45% { transform: scale(1.12); } }
+  .ps-title { margin-top: 8px; font-size: 22px; font-weight: 700; color: var(--ps-rose); }
+  .ps-time { margin-top: 2px; font-size: 14px; color: var(--ps-soft); font-weight: 500; }
+  .ps-msg { margin-top: 10px; font-size: 16px; line-height: 1.45; font-weight: 500; }
+  .ps-reward {
+    position: relative;
+    margin: 14px auto 0;
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ffe3e9, #ffd0da);
+    border: 1.5px dashed #ec93a6;
+    color: #a63f57;
+    font-weight: 600; font-size: 15px; line-height: 1.4;
+  }
+  .ps-reward::before, .ps-reward::after { /* răng cưa kiểu phiếu */
+    content: ""; position: absolute; top: 50%; width: 14px; height: 14px; margin-top: -7px;
+    border-radius: 50%; background: var(--ps-card);
+  }
+  .ps-reward::before { left: -8px; } .ps-reward::after { right: -8px; }
+  .ps-reward-label { display: block; font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; opacity: .75; margin-bottom: 2px; }
+  .ps-reward img { display: block; width: 100%; border-radius: 8px; margin-top: 8px; }
+  .ps-btns { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+  .ps-btn {
+    font: inherit; font-weight: 600; font-size: 15px;
+    border: 0; border-radius: 99px; padding: 9px 18px;
+    cursor: pointer;
+    background: #f4e6e0; color: var(--ps-ink);
+    transition: transform .15s ease, filter .2s;
+  }
+  .ps-btn.ps-main { background: var(--ps-rose); color: #fff; box-shadow: 0 4px 12px rgba(232, 96, 124, .35); }
+  .ps-btn:active { transform: scale(.95); }
+  .ps-btn:focus-visible { outline: 2px solid var(--ps-rose); outline-offset: 2px; }
+
+  .ps-fx { position: fixed; inset: 0; pointer-events: none; z-index: 25; overflow: hidden; }
+  .ps-fx span { position: absolute; left: 0; top: 0; line-height: 1; will-change: transform, opacity; }
+  .ps-ring { position: absolute; left: 0; top: 0; width: 60px; height: 60px; margin: -30px 0 0 -30px; border-radius: 50%; border: 2px solid #f06a85; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+  }
+</style>
+</head>
+<body>
+<main class="ps-stage">
+  <div class="ps-col">
+    <div class="ps-card">
+      <div class="ps-ref" id="psRef" role="img" aria-label="Ảnh mẫu"></div>
+      <div class="ps-cap"><span id="psCaption"></span><span class="ps-timer" id="psTimer" hidden>00:00</span></div>
+    </div>
+    <div class="ps-card ps-play">
+      <div class="ps-board" id="psBoard" aria-label="Khung ghép ảnh — kéo các mảnh vào đúng vị trí">
+        <div class="ps-ghost" id="psGhost"></div>
+        <svg class="ps-grid" id="psGrid" preserveAspectRatio="none"></svg>
+        <div class="ps-full" id="psFull"></div>
+        <div class="ps-shine"></div>
+      </div>
+    </div>
+  </div>
+  <p class="ps-hint" id="psHint"></p>
+</main>
+
+<div class="ps-modal" id="psModal" role="dialog" aria-modal="true" aria-labelledby="psTitle" aria-hidden="true">
+  <div class="ps-sheet">
+    <div class="ps-big" id="psBig">💖</div>
+    <h2 class="ps-title" id="psTitle"></h2>
+    <p class="ps-time" id="psTime"></p>
+    <p class="ps-msg" id="psMsg"></p>
+    <div class="ps-reward" id="psReward" hidden></div>
+    <div class="ps-btns">
+      <button class="ps-btn" id="psView" type="button"></button>
+      <button class="ps-btn ps-main" id="psAgain" type="button"></button>
+    </div>
+  </div>
+</div>
+
+<audio id="music" loop preload="auto"></audio>
+
+<script>
+/* ======================= CẤU HÌNH — sửa ở đây ======================= */
+const CONFIG = {
+  photo: "../../assets/data/detail/photo-puzzle-20102026/photo.jpg",   // nên là ảnh vuông; ảnh khác tỉ lệ sẽ tự cắt giữa
+  caption: "Ghép lại bức ảnh này để nhận quà 20/10 nhé",
+  hint: "Kéo từng mảnh vào đúng ô nhé 🧩",
+  grid: 3,                       // số ô mỗi cạnh: 3 = 9 mảnh (dễ), 4 = 16 mảnh (khó hơn)
+  maxRotation: 28,               // độ nghiêng tối đa của mảnh khi xáo (độ)
+  ghostOpacity: 0.1,             // độ hiện của ảnh mờ gợi ý trong khung (0 = tắt)
+  timeLimit: 30,                 // thử thách (giây) — 0 = không giới hạn
+  showTimer: false,              // hiện đồng hồ đếm giờ cạnh chú thích
+  music: "",                     // ví dụ "../../assets/data/detail/photo-puzzle-20102026/music.mp3" — phát ở lần chạm đầu tiên
+  fullscreenOnOpen: true,        // chạm lần đầu bật toàn màn hình; chạm đúp (ngoài khung ghép) để bật/tắt
+  solved: {
+    title: "Ghép xong rồi! 🎉",
+    time: "Thời gian: {s} giây",                         // {s} = số giây
+    win: "Nhanh quá! Quà 20/10 của em đây 💝",             // khi xong trong timeLimit
+    late: "Hơi lâu một chút, nhưng quà vẫn là của em 💝",  // khi quá timeLimit
+    again: "Chơi lại",
+    view: "Ngắm ảnh"
+  },
+  reward: {                      // phần thưởng hiện khi ghép xong — để text "" để ẩn
+    label: "Phiếu quà 20/10",
+    text: "Một buổi hẹn hò cuối tuần — em chọn nơi, anh lo phần còn lại",
+    photo: ""                    // ảnh thưởng (tuỳ chọn)
+  }
+};
+/* =================================================================== */
+
+const $ = id => document.getElementById(id);
+const board = $("psBoard"), ghost = $("psGhost"), gridSvg = $("psGrid"), hint = $("psHint");
+const N = Math.max(2, Math.min(6, CONFIG.grid | 0 || 3));
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wait = ms => new Promise(r => setTimeout(r, ms));
+
+$("psCaption").textContent = CONFIG.caption;
+hint.textContent = CONFIG.hint;
+const S = CONFIG.solved;
+$("psTitle").textContent = S.title;
+$("psAgain").textContent = S.again;
+$("psView").textContent = S.view;
+
+// ---------- Ảnh mẫu tự vẽ khi chưa có photo ----------
+function placeholderImage() {
+  const c = document.createElement("canvas"), W = 900;
+  c.width = c.height = W;
+  const g = c.getContext("2d");
+  const bg = g.createLinearGradient(0, 0, W, W);
+  bg.addColorStop(0, "#ffd6c9"); bg.addColorStop(.45, "#f7a8be"); bg.addColorStop(1, "#b98bd9");
+  g.fillStyle = bg; g.fillRect(0, 0, W, W);
+  // vầng sáng + vòng tròn trang trí để mỗi mảnh có nét riêng
+  const glow = g.createRadialGradient(W * .25, W * .2, 10, W * .25, W * .2, W * .45);
+  glow.addColorStop(0, "rgba(255,250,235,.9)"); glow.addColorStop(1, "rgba(255,250,235,0)");
+  g.fillStyle = glow; g.fillRect(0, 0, W, W);
+  g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 6;
+  for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(W * .82, W * .85, 70 + i * 55, 0, Math.PI * 2); g.stroke(); }
+  g.lineWidth = 3; g.strokeStyle = "rgba(255,255,255,.4)";
+  for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(0, W * .62 + i * 34); g.bezierCurveTo(W * .3, W * .5 + i * 34, W * .6, W * .75 + i * 34, W, W * .6 + i * 34); g.stroke(); }
+  const heart = (x, y, s, fill, rot = 0) => {
+    g.save(); g.translate(x, y); g.rotate(rot); g.scale(s, s);
+    g.beginPath(); g.moveTo(0, 30);
+    g.bezierCurveTo(-55, -8, -30, -58, 0, -28);
+    g.bezierCurveTo(30, -58, 55, -8, 0, 30);
+    g.fillStyle = fill; g.fill(); g.restore();
+  };
+  [[.14, .55, .9, -.3], [.86, .16, 1.1, .35], [.2, .86, .7, .2], [.68, .9, .6, -.2], [.9, .52, .55, .4], [.42, .1, .5, -.1]]
+    .forEach(([x, y, s, r]) => heart(W * x, W * y, s, "rgba(255,255,255,.55)", r));
+  g.shadowColor = "rgba(150,40,70,.35)"; g.shadowBlur = 30; g.shadowOffsetY = 10;
+  heart(W / 2, W * .47, 5.2, "#ff5a7e");
+  g.shadowColor = "transparent";
+  heart(W * .43, W * .4, 1.1, "rgba(255,255,255,.45)", -.5);
+  g.fillStyle = "#fff"; g.textAlign = "center";
+  g.font = "700 70px Mali, 'Comic Sans MS', cursive";
+  g.fillText("I ❤ U", W / 2, W * .53);
+  g.font = "600 38px Mali, 'Comic Sans MS', cursive";
+  g.fillStyle = "rgba(255,255,255,.95)";
+  g.fillText("Đặt ảnh vào photo.jpg", W / 2, W * .8);
+  return { src: c.toDataURL("image/jpeg", .9), w: W, h: W };
+}
+
+// ---------- Khung ghép ----------
+let img = null;                 // { src, w, h }
+let pieces = [];                // { el, r, c, x, y, rot, placed }  x,y: góc trên-trái, tỉ lệ theo cạnh khung
+let zTop = 10, started = 0, solvedAt = 0, timerId = 0, busy = true;
+
+function drawGrid() {
+  let s = `<rect x="0" y="0" width="100" height="100" rx="1.5"/>`;
+  for (let i = 1; i < N; i++) {
+    const p = (100 * i / N).toFixed(3);
+    s += `<line x1="${p}" y1="0" x2="${p}" y2="100"/><line x1="0" y1="${p}" x2="100" y2="${p}"/>`;
+  }
+  gridSvg.setAttribute("viewBox", "0 0 100 100");
+  gridSvg.innerHTML = s;
+}
+
+// background-size/position để 1 mảnh hiển thị đúng phần ảnh (cắt giữa nếu ảnh không vuông)
+function bgFor(r, c, B) {
+  const ar = img.w / img.h;
+  const bw = ar >= 1 ? B * ar : B, bh = ar >= 1 ? B : B / ar;
+  const ox = (bw - B) / 2, oy = (bh - B) / 2, cell = B / N;
+  return { size: `${bw}px ${bh}px`, pos: `${-(ox + c * cell)}px ${-(oy + r * cell)}px` };
+}
+
+function place(p) {
+  const B = board.clientWidth;
+  p.el.style.transform = `translate(${p.x * B}px, ${p.y * B}px) rotate(${p.rot}deg)`;
+}
+
+function layout() {
+  if (!img) return;
+  const B = board.clientWidth, cell = B / N;
+  pieces.forEach(p => {
+    const bg = bgFor(p.r, p.c, B);
+    Object.assign(p.el.style, { width: cell + "px", height: cell + "px", backgroundSize: bg.size, backgroundPosition: bg.pos });
+    place(p);
+  });
+}
+
+function buildPieces() {
+  pieces.forEach(p => p.el.remove());
+  pieces = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const el = document.createElement("div");
+    el.className = "ps-piece";
+    el.style.backgroundImage = `url("${img.src}")`;
+    const p = { el, r, c, x: c / N, y: r / N, rot: 0, placed: false };
+    el.addEventListener("pointerdown", e => startDrag(e, p));
+    board.insertBefore(el, $("psFull"));
+    pieces.push(p);
+  }
+  layout();
+}
+
+const rand = (a, b) => a + Math.random() * (b - a);
+function shuffle() {
+  const s = 1 / N;
+  // vị trí ngẫu nhiên, chồng lên nhau như trong video, tránh rơi sẵn vào đúng ô
+  const order = pieces.slice().sort(() => Math.random() - .5);
+  order.forEach(p => {
+    let x, y, tries = 0;
+    do {
+      x = rand(.01, 1 - s - .01); y = rand(.01, 1 - s - .01);
+    } while (Math.hypot(x - p.c * s, y - p.r * s) < s * .7 && ++tries < 40);
+    p.x = x; p.y = y;
+    let rot = rand(-CONFIG.maxRotation, CONFIG.maxRotation);
+    if (Math.abs(rot) < 5) rot += rot < 0 ? -6 : 6;
+    p.rot = rot; p.placed = false;
+    p.el.classList.remove("ps-placed", "ps-pop");
+    p.el.style.zIndex = ++zTop;
+  });
+}
+
+async function newGame(firstTime) {
+  busy = true;
+  board.classList.remove("ps-solved");
+  started = 0; solvedAt = 0; clearInterval(timerId); updateTimer();
+  if (firstTime) {
+    // hiện ảnh ghép sẵn một chút rồi xáo tung ra
+    pieces.forEach(p => { p.x = p.c / N; p.y = p.r / N; p.rot = 0; place(p); });
+    await wait(reduceMotion ? 300 : 1100);
+  }
+  shuffle();
+  pieces.forEach((p, i) => {
+    p.el.classList.add("ps-anim");
+    p.el.style.transitionDelay = reduceMotion ? "0s" : (i * 45) + "ms";
+    place(p);
+  });
+  await wait(reduceMotion ? 50 : 500 + pieces.length * 45);
+  pieces.forEach(p => { p.el.classList.remove("ps-anim"); p.el.style.transitionDelay = ""; });
+  busy = false;
+}
+
+// ---------- Kéo thả (pointer events: chạy cả cảm ứng và chuột) ----------
+let drag = null;
+function startDrag(e, p) {
+  if (busy || p.placed || drag) return;
+  e.preventDefault();
+  const rect = board.getBoundingClientRect(), B = rect.width;
+  drag = { p, id: e.pointerId, dx: e.clientX - rect.left - p.x * B, dy: e.clientY - rect.top - p.y * B, moved: false };
+  p.el.setPointerCapture(e.pointerId);
+  p.el.classList.remove("ps-anim", "ps-snap");
+  p.el.classList.add("ps-drag");
+  p.el.style.zIndex = ++zTop;
+  if (!started) startTimer();
+  hint.classList.add("ps-gone");
+}
+function moveDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const rect = board.getBoundingClientRect(), B = rect.width, s = 1 / N;
+  const lim = s * .25; // cho thò ra ngoài khung một chút
+  drag.p.x = Math.min(1 - s + lim, Math.max(-lim, (e.clientX - rect.left - drag.dx) / B));
+  drag.p.y = Math.min(1 - s + lim, Math.max(-lim, (e.clientY - rect.top - drag.dy) / B));
+  drag.moved = true;
+  place(drag.p);
+}
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.id) return;
+  const p = drag.p;
+  drag = null;
+  p.el.classList.remove("ps-drag");
+  const s = 1 / N;
+  const dist = Math.hypot(p.x - p.c * s, p.y - p.r * s);
+  if (dist < s * .38) {                 // gần đúng ô -> hút vào, xoay thẳng, khoá lại
+    p.x = p.c * s; p.y = p.r * s; p.rot = 0; p.placed = true;
+    p.el.classList.add("ps-snap", "ps-placed");
+    p.el.style.zIndex = 2;
+    place(p);
+    p.el.classList.remove("ps-pop"); void p.el.offsetWidth; p.el.classList.add("ps-pop");
+    if (navigator.vibrate) navigator.vibrate(12);
+    if (pieces.every(q => q.placed)) setTimeout(onSolved, 360);
+  }
+}
+document.addEventListener("pointermove", moveDrag, { passive: true });
+document.addEventListener("pointerup", endDrag);
+document.addEventListener("pointercancel", endDrag);
+board.addEventListener("contextmenu", e => e.preventDefault());
+
+// ---------- Đồng hồ ----------
+const timerEl = $("psTimer");
+timerEl.hidden = !CONFIG.showTimer;
+const elapsed = () => started ? ((solvedAt || performance.now()) - started) / 1000 : 0;
+function updateTimer() {
+  const t = Math.floor(elapsed());
+  timerEl.textContent = `${String(t / 60 | 0).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+  timerEl.classList.toggle("ps-over", CONFIG.timeLimit > 0 && t >= CONFIG.timeLimit);
+}
+function startTimer() { started = performance.now(); clearInterval(timerId); timerId = setInterval(updateTimer, 250); }
+
+// ---------- Ghép xong ----------
+const modal = $("psModal");
+async function onSolved() {
+  if (solvedAt) return;
+  solvedAt = performance.now();
+  clearInterval(timerId); updateTimer();
+  busy = true;
+  board.classList.add("ps-solved");
+  const r = board.getBoundingClientRect();
+  burst(r.left + r.width / 2, r.top + r.height / 2, 18);
+  setTimeout(() => burst(r.left + r.width * .2, r.top + r.height * .25, 8), 250);
+  setTimeout(() => burst(r.left + r.width * .8, r.top + r.height * .3, 8), 400);
+  heartRain();
+
+  const secs = Math.max(1, Math.round(elapsed()));
+  const win = !CONFIG.timeLimit || secs <= CONFIG.timeLimit;
+  $("psTime").textContent = S.time.replace("{s}", secs);
+  $("psMsg").textContent = win ? S.win : S.late;
+  $("psBig").textContent = win ? "💖" : "🥰";
+  const rw = $("psReward"), R = CONFIG.reward || {};
+  rw.hidden = !(R.text || R.photo);
+  rw.innerHTML = "";
+  if (!rw.hidden) {
+    if (R.label) { const l = document.createElement("span"); l.className = "ps-reward-label"; l.textContent = R.label; rw.appendChild(l); }
+    if (R.text) rw.appendChild(document.createTextNode(R.text));
+    if (R.photo) { const im = new Image(); im.alt = ""; im.onerror = () => im.remove(); im.src = R.photo; rw.appendChild(im); }
+  }
+  await wait(reduceMotion ? 200 : 1500);
+  showModal(true);
+}
+function showModal(on) {
+  modal.classList.toggle("ps-show", on);
+  modal.setAttribute("aria-hidden", on ? "false" : "true");
+}
+$("psView").addEventListener("click", () => showModal(false));
+$("psAgain").addEventListener("click", () => { showModal(false); setTimeout(() => newGame(false), 250); });
+modal.addEventListener("click", e => { if (e.target === modal) showModal(false); });
+// đã đóng hộp mà muốn mở lại: chạm vào khung ảnh đã ghép xong
+board.addEventListener("click", () => { if (solvedAt && !modal.classList.contains("ps-show")) showModal(true); });
+
+// ---------- Hiệu ứng tim ----------
+const fx = document.createElement("div");
+fx.className = "ps-fx";
+document.body.appendChild(fx);
+const FX_ICONS = ["❤️", "💖", "💕", "💗", "🌸", "✨", "💞"];
+function burst(x, y, count) {
+  const ring = document.createElement("div");
+  ring.className = "ps-ring";
+  fx.appendChild(ring);
+  ring.animate([
+    { transform: `translate(${x}px, ${y}px) scale(.2)`, opacity: .9 },
+    { transform: `translate(${x}px, ${y}px) scale(2.2)`, opacity: 0 }
+  ], { duration: 700, easing: "ease-out" }).onfinish = () => ring.remove();
+  const n = reduceMotion ? 4 : count;
+  for (let i = 0; i < n; i++) {
+    const el = document.createElement("span");
+    el.textContent = FX_ICONS[Math.random() * FX_ICONS.length | 0];
+    el.style.fontSize = (14 + Math.random() * 18) + "px";
+    fx.appendChild(el);
+    const dx = (Math.random() - .5) * 260, dy = -(120 + Math.random() * 260);
+    const sway = (Math.random() - .5) * 60, rot = (Math.random() - .5) * 90;
+    const at = (fx_, fy, s, r) => `translate(${x + fx_}px, ${y + fy}px) translate(-50%, -50%) scale(${s}) rotate(${r}deg)`;
+    const frames = reduceMotion
+      ? [{ transform: at(0, 0, 1, 0), opacity: 1 }, { transform: at(dx * .3, dy * .4, 1, 0), opacity: 0 }]
+      : [
+          { transform: at(0, 0, .2, 0), opacity: 0 },
+          { transform: at(dx * .35, dy * .25, 1.15, rot * .4), opacity: 1, offset: .18 },
+          { transform: at(dx * .7 + sway, dy * .65, 1, rot * .8), opacity: .9, offset: .6 },
+          { transform: at(dx + sway * .5, dy, .7, rot), opacity: 0 }
+        ];
+    el.animate(frames, { duration: 1300 + Math.random() * 900, delay: Math.random() * 150, easing: "cubic-bezier(.2,.7,.3,1)", fill: "both" })
+      .onfinish = () => el.remove();
+  }
+}
+function heartRain() {
+  if (reduceMotion) return;
+  const W = innerWidth, H = innerHeight;
+  for (let i = 0; i < 26; i++) {
+    const el = document.createElement("span");
+    el.textContent = FX_ICONS[Math.random() * 5 | 0];
+    el.style.fontSize = (12 + Math.random() * 16) + "px";
+    fx.appendChild(el);
+    const x = Math.random() * W, drift = (Math.random() - .5) * 120, r = (Math.random() - .5) * 120;
+    el.animate([
+      { transform: `translate(${x}px, -40px) rotate(0deg)`, opacity: 0 },
+      { transform: `translate(${x + drift * .3}px, ${H * .15}px) rotate(${r * .3}deg)`, opacity: 1, offset: .12 },
+      { transform: `translate(${x + drift}px, ${H + 40}px) rotate(${r}deg)`, opacity: .8 }
+    ], { duration: 2600 + Math.random() * 1800, delay: 200 + Math.random() * 1400, easing: "cubic-bezier(.35,.1,.6,1)", fill: "both" })
+      .onfinish = () => el.remove();
+  }
+}
+
+// ---------- Tải ảnh ----------
+function start(data) {
+  img = data;
+  $("psRef").style.backgroundImage = `url("${img.src}")`;
+  ghost.style.backgroundImage = $("psFull").style.backgroundImage = `url("${img.src}")`;
+  ghost.style.opacity = CONFIG.ghostOpacity;
+  drawGrid();
+  buildPieces();
+  newGame(true);
+}
+(function loadPhoto() {
+  const fallback = () => (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => start(placeholderImage()));
+  if (!CONFIG.photo) return fallback();
+  const im = new Image();
+  im.onload = () => start({ src: CONFIG.photo, w: im.naturalWidth, h: im.naturalHeight });
+  im.onerror = fallback;
+  im.src = CONFIG.photo;
+})();
+if ("ResizeObserver" in window) new ResizeObserver(layout).observe(board);
+else addEventListener("resize", layout);
+
+// test / tiện ích: tự ghép xong toàn bộ (gọi từ console)
+window.__puzzleSolve = () => {
+  pieces.forEach(p => { if (!p.placed) { p.x = p.c / N; p.y = p.r / N; p.rot = 0; p.placed = true; p.el.classList.add("ps-snap", "ps-placed"); p.el.style.zIndex = 2; place(p); } });
+  if (!started) started = performance.now() - 12000;
+  setTimeout(onSolved, 360);
+};
+
+// ---------- Nhạc: phát ở lần chạm đầu tiên ----------
+const music = $("music");
+if (CONFIG.music) music.src = CONFIG.music;
+function playMusic() {
+  if (!CONFIG.music || !music.paused) return;
+  music.play().catch(() => {});      // bị chặn khi chưa có thao tác chạm -> thử lại ở lần chạm sau
+}
+["pointerdown", "touchend", "keydown"].forEach(ev => document.addEventListener(ev, playMusic, { passive: true }));
+
+// ---------- Toàn màn hình: chạm lần đầu để bật, chạm đúp để bật/tắt (iPhone Safari không hỗ trợ) ----------
+const root = document.documentElement;
+const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsAutoTried = false, lastFsRequest = 0, lastTap = { t: 0, x: 0, y: 0 };
+
+function enterFullscreen() {
+  if (!fsSupported || isFullscreen()) return;
+  lastFsRequest = performance.now();
+  try {
+    const r = root.requestFullscreen ? root.requestFullscreen({ navigationUI: "hide" }) : root.webkitRequestFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function exitFullscreen() {
+  lastFsRequest = performance.now();
+  try {
+    const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function autoFullscreen() {
+  if (fsAutoTried || !CONFIG.fullscreenOnOpen) return;
+  fsAutoTried = true;
+  enterFullscreen();
+}
+// kéo mảnh không phát sinh "click" -> bật toàn màn hình ngay khi chạm lần đầu
+document.addEventListener("pointerup", () => autoFullscreen());
+document.addEventListener("click", e => {
+  // chạm trong khung ghép / nút / hộp chúc mừng không tính là chạm đúp
+  if (e.target.closest(".ps-board, button, .ps-sheet")) { lastTap = { t: 0, x: 0, y: 0 }; return; }
+  const now = performance.now();
+  const isDouble = now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40;
+  lastTap = isDouble ? { t: 0, x: 0, y: 0 } : { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble && fsSupported && now - lastFsRequest > 600) isFullscreen() ? exitFullscreen() : enterFullscreen();
+});
+</script>
+</body>
+</html>

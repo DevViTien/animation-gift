@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#fbe3ea">
+<title>Our Memories</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Quicksand:wght@500;600&display=swap&subset=vietnamese" rel="stylesheet">
+<style>
+  :root {
+    --pg-ink: #463a3f;
+    --pg-muted: #8f7e85;
+    --pg-pink: #f6d3dc;
+    --pg-pink-soft: #fbe6ec;
+    --pg-pink-deep: #ec8aa2;
+    --pg-paper: #fff;
+    --pg-hand: "Patrick Hand", "Comic Sans MS", cursive;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: radial-gradient(ellipse 80% 70% at 50% 40%, #fbeef2, #f1dbe2);
+    font-family: var(--pg-hand);
+    color: var(--pg-ink);
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none; -webkit-user-select: none;
+  }
+  #pgApp {
+    position: relative;
+    width: min(100vw, 440px);
+    height: 100dvh;
+    margin: 0 auto;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 0 44px rgba(170, 100, 120, .2);
+  }
+
+  /* ---------- trang cuộn ---------- */
+  .pg-scroll {
+    position: absolute; inset: 0;
+    overflow-y: auto; overflow-x: hidden;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    scrollbar-width: none;
+    background-color: #fffbfc;
+    /* dải hồng giữa hai cột */
+    background-image: linear-gradient(90deg, transparent calc(50% - 8px), rgba(247, 210, 220, .7) calc(50% - 8px), rgba(247, 210, 220, .7) calc(50% + 8px), transparent calc(50% + 8px));
+  }
+  .pg-scroll::-webkit-scrollbar { display: none; }
+  #pgApp.pg-locked .pg-scroll { overflow: hidden; }
+
+  .pg-head {
+    position: relative; z-index: 3;
+    padding: calc(14px + env(safe-area-inset-top)) 14px 6px;
+    background: linear-gradient(#fbe0e7 0%, #fbe6ec 60%, rgba(251, 230, 236, 0) 100%);
+  }
+  .pg-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px 5px 10px;
+    font-family: "Quicksand", sans-serif; font-size: 12px; font-weight: 600; color: #7d6b72;
+    background: rgba(255,255,255,.78);
+    border: 0; border-radius: 999px;
+    box-shadow: 0 1px 6px rgba(170, 110, 130, .18);
+    cursor: pointer;
+    opacity: 0; transform: translateY(-8px);
+  }
+  .pg-pill svg { width: 12px; height: 11px; color: var(--pg-pink-deep); }
+  .pg-pill:active { transform: scale(.95); }
+  .pg-ready .pg-pill { animation: pgDrop .6s cubic-bezier(.2,.8,.25,1) .05s forwards; }
+  @keyframes pgDrop { to { opacity: 1; transform: none; } }
+
+  .pg-grid { position: relative; }
+  .pg-row {
+    position: relative;
+    display: grid; grid-template-columns: 1fr 1fr; align-items: start;
+    gap: 16px;
+    padding: 12px 13px 16px;
+    border-bottom: 14px solid rgba(247, 210, 220, .5);
+  }
+  .pg-row:last-child { border-bottom: 0; }
+
+  .pg-tile {
+    position: relative;
+    background: var(--pg-paper);
+    padding: 6px 6px 3px;
+    box-shadow: 0 2px 10px rgba(185, 115, 135, .16), 0 0 0 1px rgba(240, 214, 222, .7);
+    cursor: zoom-in;
+    opacity: 0; transform: translateY(22px) scale(.97);
+    transition: transform .2s ease;
+  }
+  .pg-tile.pg-in { animation: pgRise .7s cubic-bezier(.2,.8,.25,1) forwards; animation-delay: var(--d, 0ms); }
+  @keyframes pgRise { to { opacity: 1; transform: none; } }
+  .pg-tile.pg-shown { opacity: 1; transform: none; animation: none; }
+  .pg-tile.pg-shown:active { transform: scale(.97); }
+  .pg-tile.pg-hide-src .pg-ph { visibility: hidden; }
+  .pg-tile figcaption {
+    font-size: 12.5px; line-height: 1.32; text-align: center; color: #4b3e44;
+    padding: 6px 3px 5px; min-height: 2.3em;
+    word-break: break-word;
+  }
+
+  .pg-ph { position: relative; width: 100%; aspect-ratio: 1 / 1.04; overflow: hidden; background: #ece6e8; }
+  .pg-ph.pg-loading::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.6) 50%, transparent 70%); background-size: 220% 100%; animation: pgShimmer 1.3s linear infinite; }
+  @keyframes pgShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+  .pg-ph img { width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .5s; -webkit-user-drag: none; }
+  .pg-ph img.pg-ok { opacity: 1; }
+  .pg-empty {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    background: linear-gradient(145deg, #fde9ee 0%, #f8d3dd 100%);
+    color: #bb7387; font-size: 12px; text-align: center; padding: 8px;
+  }
+  .pg-empty svg { width: 30px; height: 30px; opacity: .8; }
+  .pg-empty::before { content: ""; position: absolute; inset: 6px; border: 1.5px dashed rgba(214, 140, 162, .45); }
+
+  /* ---------- sticker trang trí ---------- */
+  .pg-stk { position: absolute; z-index: 2; pointer-events: none; opacity: 0; }
+  .pg-ready .pg-stk { animation: pgPop .55s cubic-bezier(.3,1.6,.5,1) forwards; animation-delay: var(--d, .6s); }
+  @keyframes pgPop { from { opacity: 0; transform: var(--t, none) scale(.3); } to { opacity: 1; transform: var(--t, none) scale(1); } }
+  .pg-stk-heart { left: calc(50% - 15px); top: -9px; width: 30px; filter: drop-shadow(0 2px 3px rgba(220, 130, 155, .3)); --t: rotate(-8deg); }
+  .pg-stk-xoxo { left: -1px; top: 20px; font-size: 12px; letter-spacing: 1px; color: #b49aa3; --t: rotate(-62deg); }
+  .pg-stk-line { right: 3px; bottom: 6px; width: 20px; color: #8e7d84; --t: rotate(10deg); }
+  .pg-stk-tape { left: calc(75% - 22px); top: 4px; width: 44px; height: 14px; background: rgba(240, 160, 180, .55); box-shadow: 0 1px 2px rgba(0,0,0,.06); --t: rotate(-4deg); }
+
+  .pg-foot { position: relative; height: calc(64px + env(safe-area-inset-bottom)); }
+  .pg-stk-star { left: 12px; top: 6px; width: 30px; --t: rotate(-14deg); }
+  .pg-foot p { position: absolute; left: 0; right: 0; top: 16px; text-align: center; font-size: 13px; color: #c48a9a; opacity: 0; transition: opacity .8s 1s; }
+  .pg-ready .pg-foot p { opacity: 1; }
+
+  /* ---------- xem ảnh lớn ---------- */
+  .pg-lightbox {
+    position: absolute; inset: 0; z-index: 20;
+    visibility: hidden; transition: visibility 0s .3s;
+    cursor: zoom-out;
+  }
+  .pg-lightbox::before { content: ""; position: absolute; inset: 0; background: rgba(18, 12, 15, .78); opacity: 0; transition: opacity .28s ease; }
+  .pg-lightbox.pg-open { visibility: visible; transition: visibility 0s; }
+  .pg-lightbox.pg-open::before { opacity: 1; }
+  .pg-big { position: absolute; left: 0; top: 0; overflow: hidden; background: #2a2326; box-shadow: 0 18px 40px rgba(0,0,0,.35); transform-origin: 0 0; will-change: transform; }
+  .pg-big img { width: 100%; height: 100%; object-fit: cover; display: block; -webkit-user-drag: none; }
+  .pg-big .pg-empty { font-size: 15px; }
+  .pg-big .pg-empty svg { width: 44px; height: 44px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+  }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="pgHeart" viewBox="0 0 24 22"><path d="M12 21.2S1.6 14.9.6 8.2C0 4.2 2.6 1 6.2 1c2.4 0 4.6 1.4 5.8 3.5C13.2 2.4 15.4 1 17.8 1c3.6 0 6.2 3.2 5.6 7.2C22.4 14.9 12 21.2 12 21.2z"/></symbol>
+    <symbol id="pgHeartLine" viewBox="0 0 24 22"><path d="M12 20S2.6 14.4 1.8 8.4C1.3 4.9 3.4 2.2 6.4 2.1c2.3-.1 4.3 1.4 5.6 3.6 1.2-2.3 3.2-3.8 5.5-3.7 3.1.1 5.2 2.9 4.8 6.4C21.6 14.4 12 20 12 20z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+    <symbol id="pgCam" viewBox="0 0 24 24"><path d="M4 8h3l1.6-2.4h6.8L17 8h3v11H4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="12" cy="13.2" r="3.4" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+  </defs>
+</svg>
+
+<div id="pgApp">
+  <div class="pg-scroll" id="pgScroll">
+    <header class="pg-head">
+      <button class="pg-pill" id="pgPill" type="button"><svg><use href="#pgHeart" fill="currentColor"/></svg><span id="pgTitle"></span></button>
+    </header>
+    <main class="pg-grid" id="pgGrid"></main>
+    <footer class="pg-foot">
+      <svg class="pg-stk pg-stk-star" viewBox="0 0 24 24" style="--d:1.1s"><path d="M12 2.2l2.6 6.1 6.6.5-5 4.3 1.6 6.5L12 16.1l-5.8 3.5 1.6-6.5-5-4.3 6.6-.5z" fill="#f7c1cf" stroke="#ec9cb1" stroke-width="1" stroke-linejoin="round"/></svg>
+      <p id="pgFooter"></p>
+    </footer>
+  </div>
+  <div class="pg-lightbox" id="pgLightbox" role="dialog" aria-modal="true" aria-label="Xem ảnh"></div>
+</div>
+
+<audio id="music" loop preload="auto"></audio>
+
+<script>
+/* ======================= CẤU HÌNH — sửa ở đây ======================= */
+const CONFIG = {
+  title: "Our Memories",          // chữ trên nút nhỏ góc trên (chạm vào để cuộn về đầu)
+  pageTitle: "Our Memories",      // tiêu đề tab trình duyệt
+  footer: "",                     // dòng nhỏ cuối trang, ví dụ "còn nhiều trang nữa nha ♡" ("" = ẩn)
+  music: "",                      // ví dụ "music.mp3" — phát ở lần chạm đầu tiên
+  fullscreenOnOpen: true,         // chạm lần đầu bật toàn màn hình; chạm đúp để bật/tắt (iPhone không hỗ trợ)
+  stickers: true,                 // tim hồng, chữ XOXO, tim nét vẽ, ngôi sao trang trí
+  // ảnh đặt cạnh index.html; thiếu ảnh sẽ hiện khung hồng thay thế
+  photos: [
+    { src: "photo1.jpg", caption: "Cảm ơn em đã luôn ở cạnh anh, mọi lúc" },
+    { src: "photo2.jpg", caption: "Cảm ơn em vì sự dịu dàng chỉ dành cho anh" },
+    { src: "photo3.jpg", caption: "Cảm ơn em đã kiên nhẫn cùng anh lớn lên" },
+    { src: "photo4.jpg", caption: "Cảm ơn em cho anh biết thương là thế nào" },
+    { src: "photo5.jpg", caption: "Cảm ơn em đã nắm tay anh qua ngày khó" },
+    { src: "photo6.jpg", caption: "Cảm ơn em biến ngày thường thành kỷ niệm" }
+  ]
+};
+/* =================================================================== */
+
+const $ = s => document.querySelector(s);
+const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const app = $("#pgApp"), scroller = $("#pgScroll"), grid = $("#pgGrid"), lb = $("#pgLightbox");
+
+document.title = CONFIG.pageTitle || CONFIG.title || "Our Memories";
+$("#pgTitle").textContent = CONFIG.title;
+$("#pgFooter").textContent = CONFIG.footer || "";
+$("#pgPill").addEventListener("click", () => scroller.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" }));
+
+// ---------- ảnh + khung thay thế ----------
+const ratios = [];                       // tỉ lệ thật (rộng / cao) của từng ảnh, null nếu thiếu ảnh
+function placeholder(label) {
+  const name = label ? String(label).split("/").pop() : "";   // chỉ hiện tên file, không hiện cả đường dẫn
+  return `<div class="pg-empty"><svg><use href="#pgCam"/></svg><span>${esc(name || "Thêm ảnh")}</span></div>`;
+}
+function loadPhoto(box, i) {
+  const p = CONFIG.photos[i];
+  box.classList.add("pg-loading");
+  const fail = () => { ratios[i] = null; box.classList.remove("pg-loading"); box.innerHTML = placeholder(p.src); };
+  if (!p.src) return fail();
+  const img = new Image();
+  img.alt = p.caption || "";
+  img.decoding = "async";
+  img.draggable = false;
+  img.onload = () => {
+    const r = img.naturalWidth / img.naturalHeight;
+    ratios[i] = r;
+    box.style.aspectRatio = Math.min(1.25, Math.max(.78, r));   // ô ảnh theo dáng ảnh thật, giới hạn cho gọn
+    box.classList.remove("pg-loading");
+    requestAnimationFrame(() => img.classList.add("pg-ok"));
+  };
+  img.onerror = fail;
+  box.appendChild(img);
+  img.src = p.src;
+}
+
+// ---------- dựng lưới 2 cột ----------
+const STK = {
+  heart: `<svg class="pg-stk pg-stk-heart" viewBox="0 0 24 22" style="--d:.75s"><use href="#pgHeart" fill="#f9c9d5" stroke="#f0a3b6" stroke-width="1"/></svg>`,
+  xoxo: d => `<span class="pg-stk pg-stk-xoxo" style="--d:${d}s">XOXO</span>`,
+  line: d => `<svg class="pg-stk pg-stk-line" viewBox="0 0 24 22" style="--d:${d}s"><use href="#pgHeartLine"/></svg>`
+};
+const rows = Math.ceil(CONFIG.photos.length / 2);
+grid.innerHTML = [...Array(rows)].map((_, r) => {
+  let deco = "";
+  if (CONFIG.stickers) {
+    if (r === 0) deco += STK.heart;
+    if (r % 2 === 1) deco += STK.xoxo(.9 + r * .1) + STK.line(1 + r * .1);
+  }
+  const tiles = CONFIG.photos.slice(r * 2, r * 2 + 2).map((p, k) => {
+    const i = r * 2 + k;
+    return `<figure class="pg-tile" data-i="${i}" role="button" tabindex="0" aria-label="Xem ảnh ${i + 1}">
+      <div class="pg-ph"></div><figcaption>${esc(p.caption || "")}</figcaption></figure>`;
+  }).join("");
+  return `<div class="pg-row">${deco}${tiles}</div>`;
+}).join("");
+if (!CONFIG.stickers) document.querySelectorAll(".pg-foot .pg-stk").forEach(n => n.remove());
+const tiles = [...grid.querySelectorAll(".pg-tile")];
+tiles.forEach((t, i) => loadPhoto(t.querySelector(".pg-ph"), i));
+
+// ---------- hiệu ứng vào trang: ô ảnh nổi lên lần lượt, ô bên dưới hiện khi cuộn tới ----------
+function reveal(t, delay) {
+  if (t.classList.contains("pg-in")) return;
+  t.style.setProperty("--d", delay + "ms");
+  t.classList.add("pg-in");
+  t.addEventListener("animationend", () => { t.classList.remove("pg-in"); t.classList.add("pg-shown"); }, { once: true });
+}
+requestAnimationFrame(() => {
+  app.classList.add("pg-ready");
+  const vh = scroller.clientHeight;
+  let n = 0;
+  const below = [];
+  tiles.forEach(t => {
+    if (t.getBoundingClientRect().top < vh + 10) reveal(t, 120 + n++ * 110);
+    else below.push(t);
+  });
+  if (!below.length) return;
+  if (!("IntersectionObserver" in window)) return below.forEach(t => reveal(t, 0));
+  const io = new IntersectionObserver(es => {
+    let k = 0;
+    es.forEach(e => { if (e.isIntersecting) { reveal(e.target, k++ * 90); io.unobserve(e.target); } });
+  }, { root: scroller, rootMargin: "0px 0px -30px 0px" });
+  below.forEach(t => io.observe(t));
+});
+
+// ---------- xem ảnh lớn: ảnh bay từ ô ra giữa màn hình, chạm để đóng ----------
+let lbIndex = -1, lbBusy = false, big = null;
+function fitRect(r) {
+  const a = app.getBoundingClientRect();
+  const maxW = a.width * .9, maxH = a.height * .78;
+  let w = maxW, h = w / r;
+  if (h > maxH) { h = maxH; w = h * r; }
+  return { left: (a.width - w) / 2, top: (a.height - h) / 2, width: w, height: h };
+}
+function srcRect(i) {
+  const a = app.getBoundingClientRect(), b = tiles[i].querySelector(".pg-ph").getBoundingClientRect();
+  return { left: b.left - a.left, top: b.top - a.top, width: b.width, height: b.height };
+}
+function flipFrames(from, to) {
+  return [
+    { transform: `translate(${from.left}px, ${from.top}px) scale(${from.width / to.width}, ${from.height / to.height})` },
+    { transform: `translate(${to.left}px, ${to.top}px) scale(1, 1)` }
+  ];
+}
+function openLightbox(i) {
+  if (lbBusy || lbIndex >= 0) return;
+  lbIndex = i;
+  const p = CONFIG.photos[i];
+  const r = ratios[i] || 1 / 1.04;
+  const to = fitRect(r);
+  big = document.createElement("div");
+  big.className = "pg-big";
+  Object.assign(big.style, { width: to.width + "px", height: to.height + "px", transform: `translate(${to.left}px, ${to.top}px)` });
+  big.innerHTML = ratios[i] ? `<img src="${esc(p.src)}" alt="${esc(p.caption || "")}" draggable="false">` : placeholder(p.src);
+  lb.innerHTML = "";
+  lb.appendChild(big);
+  lb.classList.add("pg-open");
+  app.classList.add("pg-locked");
+  if (reduced) return;
+  lbBusy = true;
+  tiles[i].classList.add("pg-hide-src");
+  big.animate(flipFrames(srcRect(i), to), { duration: 340, easing: "cubic-bezier(.2,.8,.25,1)" })
+    .finished.catch(() => {}).then(() => { lbBusy = false; tiles[i].classList.remove("pg-hide-src"); });
+}
+function closeLightbox() {
+  if (lbBusy || lbIndex < 0) return;
+  const i = lbIndex, b = big;
+  lb.classList.remove("pg-open");
+  app.classList.remove("pg-locked");
+  const done = () => { if (big === b) { lb.innerHTML = ""; big = null; } tiles[i].classList.remove("pg-hide-src"); lbIndex = -1; lbBusy = false; };
+  if (reduced) return done();
+  lbBusy = true;
+  const to = fitRect(ratios[i] || 1 / 1.04);
+  tiles[i].classList.add("pg-hide-src");
+  const anim = b.animate(flipFrames(srcRect(i), to).reverse(), { duration: 280, easing: "cubic-bezier(.4,0,.2,1)", fill: "forwards" });
+  anim.finished.catch(() => {}).then(done);
+}
+grid.addEventListener("click", e => {
+  const t = e.target.closest(".pg-tile");
+  if (t) openLightbox(+t.dataset.i);
+});
+grid.addEventListener("keydown", e => {
+  const t = e.target.closest(".pg-tile");
+  if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); openLightbox(+t.dataset.i); }
+});
+lb.addEventListener("click", closeLightbox);
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeLightbox(); });
+window.addEventListener("resize", () => {
+  if (!big || lbBusy || lbIndex < 0) return;
+  const to = fitRect(ratios[lbIndex] || 1 / 1.04);
+  Object.assign(big.style, { width: to.width + "px", height: to.height + "px", transform: `translate(${to.left}px, ${to.top}px)` });
+});
+
+// ---------- nhạc ----------
+const music = document.getElementById("music");
+if (CONFIG.music) music.src = CONFIG.music;
+function playMusic() {
+  if (!CONFIG.music || !music.paused) return;
+  music.play().catch(() => {});      // bị chặn khi chưa có thao tác chạm -> thử lại ở lần chạm sau
+}
+// lần chạm đầu tiên ở bất kỳ đâu sẽ bật nhạc (trình duyệt chỉ cho phát sau thao tác của người xem)
+["pointerdown", "touchend", "keydown"].forEach(ev => document.addEventListener(ev, playMusic, { passive: true }));
+
+// ---------- Toàn màn hình: chạm lần đầu để bật, chạm đúp để bật/tắt (iPhone Safari không hỗ trợ) ----------
+const root = document.documentElement;
+const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsAutoTried = false, lastFsRequest = 0, lastTap = { t: 0, x: 0, y: 0 };
+
+function enterFullscreen() {
+  if (!fsSupported || isFullscreen()) return;
+  lastFsRequest = performance.now();
+  try {
+    const r = root.requestFullscreen ? root.requestFullscreen({ navigationUI: "hide" }) : root.webkitRequestFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function exitFullscreen() {
+  lastFsRequest = performance.now();
+  try {
+    const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function autoFullscreen() {
+  if (fsAutoTried || !CONFIG.fullscreenOnOpen) return;
+  fsAutoTried = true;
+  enterFullscreen();
+}
+document.addEventListener("click", e => {
+  // mở rồi đóng ảnh liên tục là bình thường -> không tính là chạm đúp
+  if (e.target.closest(".pg-tile, .pg-lightbox, .pg-pill")) {
+    lastTap = { t: 0, x: 0, y: 0 };
+    autoFullscreen();
+    return;
+  }
+  const now = performance.now();
+  const isDouble = now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40;
+  lastTap = isDouble ? { t: 0, x: 0, y: 0 } : { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble) {
+    // bỏ qua nếu vừa bật ở cú chạm đầu tiên (tránh bật rồi tắt ngay)
+    if (fsSupported && now - lastFsRequest > 600) isFullscreen() ? exitFullscreen() : enterFullscreen();
+  } else {
+    autoFullscreen();
+  }
+});
+</script>
+</body>
+</html>

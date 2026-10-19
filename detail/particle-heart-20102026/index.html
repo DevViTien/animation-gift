@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>Chúc mừng 20/10</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@500&family=Nunito:wght@700&display=swap&subset=vietnamese" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; background: #000; }
+  body {
+    font-family: "Nunito", system-ui, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .ph-stage { position: fixed; inset: 0; height: 100dvh; overflow: hidden; background: #000; }
+  .ph-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .ph-hint {
+    position: absolute; left: 0; right: 0; bottom: calc(4.5dvh + env(safe-area-inset-bottom));
+    text-align: center; font-size: 14px; letter-spacing: .4px;
+    color: rgba(255, 205, 225, .78);
+    text-shadow: 0 0 8px rgba(255, 60, 120, .6);
+    opacity: 0; transition: opacity .8s ease;
+    pointer-events: none;
+  }
+  .ph-hint.show { opacity: 1; animation: ph-pulse 1.8s ease-in-out infinite; }
+  @keyframes ph-pulse { 50% { opacity: .4; } }
+  .ph-gate {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    background: #000; color: #ffd9e6; cursor: pointer;
+    font-size: clamp(18px, 5vw, 26px); text-align: center; padding: 0 10vw;
+    text-shadow: 0 0 12px rgba(255, 70, 130, .8);
+    transition: opacity .8s ease, visibility .8s;
+  }
+  .ph-gate span { animation: ph-pulse 1.8s ease-in-out infinite; }
+  .ph-gate.hide { opacity: 0; visibility: hidden; pointer-events: none; }
+  .ph-fallback { position: absolute; inset: 0; display: grid; place-items: center; color: #ff5a7e; font-size: 20px; text-align: center; padding: 0 8vw; }
+  @media (prefers-reduced-motion: reduce) {
+    .ph-hint.show, .ph-gate span { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="ph-stage" id="phStage">
+  <canvas class="ph-canvas" id="phCanvas" aria-label="Trái tim đỏ kết từ hàng nghìn hạt sáng, xung quanh là những lời yêu thương bay lơ lửng"></canvas>
+  <p class="ph-hint" id="phHint"></p>
+  <div class="ph-gate hide" id="phGate" role="button" tabindex="0"><span id="phGateText"></span></div>
+</div>
+<audio id="phMusic" loop preload="auto"></audio>
+
+<script>
+/* ======================= CẤU HÌNH — sửa ở đây ======================= */
+const CONFIG = {
+  texts: ["CHÚC MỪNG 20/10", "GỬI VỢ ANH", "LUÔN TRÂN TRỌNG EM"], // các dòng chữ bay lơ lửng (nên viết HOA, ngắn)
+  date: "20.10.2026",                  // ngày kỉ niệm, cũng bay lơ lửng như chữ ("" = không hiện)
+  music: "../../assets/data/detail/envelope-letter-14102026/music.mp3", // phát ở lần chạm đầu tiên
+  musicHint: "Chạm để bật nhạc ♪",      // dòng nhắc nhỏ khi có nhạc ("" = ẩn)
+  startGate: "",                       // ví dụ "Chạm để mở quà 💝" — chờ chạm rồi mới chạy; "" = tự chạy ngay
+  fullscreenOnOpen: true,              // chạm lần đầu bật toàn màn hình; chạm đúp để bật/tắt (iPhone không hỗ trợ)
+  density: 1,                          // mật độ hạt 0.5 – 1.5 (máy yếu thì giảm)
+  floatingHearts: 1,                   // số lượng tim bay (hệ số 0 – 2)
+  floatingTexts: 1,                    // số lượng chữ bay (hệ số 0 – 2)
+  photos: ["../../assets/data/detail/particle-heart-20102026/photo1.jpg", "../../assets/data/detail/particle-heart-20102026/photo2.jpg", "../../assets/data/detail/particle-heart-20102026/photo3.jpg", "../../assets/data/detail/particle-heart-20102026/photo4.jpg"],  // ảnh bay lơ lửng như chữ ([] = không có ảnh)
+  floatingPhotos: 1,                   // số lượng ảnh bay (hệ số 0 – 2)
+  pullBackAt: 24,                      // giây thứ mấy camera lùi ra xa (0 = không lùi)
+  colors: {
+    intro: "#ffd27e",       // hạt vàng lúc mở đầu
+    heart: "#ff1a35",       // trái tim
+    ground: "#ff6a8c",      // mặt đất hạt
+    floatHeart: "#ffa2c6",  // tim bay
+    text: "#ffb3dc",        // lõi chữ
+    textGlow: "#ff2f96",    // quầng sáng chữ
+    background: "#2c0109"   // quầng nền quanh trái tim
+  }
+};
+/* =================================================================== */
+
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const cv = document.getElementById("phCanvas");
+const stage = document.getElementById("phStage");
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+const lerp = (a, b, t) => a + (b - a) * t;
+const hex = h => { const n = parseInt(h.replace("#", ""), 16); return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255]; };
+const mix3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const COL = {};
+for (const k in CONFIG.colors) COL[k] = hex(CONFIG.colors[k]);
+const WHITE = [1, .97, .9];
+
+const gl = cv.getContext("webgl", { antialias: false, alpha: false, depth: false, stencil: false, premultipliedAlpha: false, powerPreference: "high-performance" });
+if (!gl) {
+  stage.insertAdjacentHTML("beforeend", '<div class="ph-fallback">Trình duyệt này chưa hỗ trợ WebGL ❤</div>');
+  throw new Error("WebGL unavailable");
+}
+cv.addEventListener("webglcontextlost", e => e.preventDefault());
+cv.addEventListener("webglcontextrestored", () => location.reload());
+
+/* ---------------- WebGL helpers ---------------- */
+function shader(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function program(vs, fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, shader(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, shader(gl.FRAGMENT_SHADER, "precision mediump float;\n" + fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, a = {};
+  for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); i < n; i++) { const nm = gl.getActiveUniform(p, i).name; u[nm] = gl.getUniformLocation(p, nm); }
+  for (let i = 0, n = gl.getProgramParameter(p, gl.ACTIVE_ATTRIBUTES); i < n; i++) { const nm = gl.getActiveAttrib(p, i).name; a[nm] = gl.getAttribLocation(p, nm); }
+  return { p, u, a };
+}
+function staticBuffer(data) { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW); return b; }
+let enabledAttribs = [];
+function bindAttribs(prog, buf, layout) { // layout: [[name, size], ...] interleaved floats
+  enabledAttribs.forEach(i => gl.disableVertexAttribArray(i)); enabledAttribs = [];
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  const stride = layout.reduce((s, l) => s + l[1], 0) * 4;
+  let off = 0;
+  for (const [name, size] of layout) {
+    const loc = prog.a[name];
+    if (loc !== undefined && loc >= 0) { gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, off); enabledAttribs.push(loc); }
+    off += size * 4;
+  }
+}
+function texture(canvas) {
+  const t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
+// ma trận 4x4 (cột chính)
+function perspective(tanY, aspect, n, f) {
+  return new Float32Array([1 / (tanY * aspect), 0, 0, 0, 0, 1 / tanY, 0, 0, 0, 0, (f + n) / (n - f), -1, 0, 0, 2 * f * n / (n - f), 0]);
+}
+function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function norm(a) { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+function mul(a, b) {
+  const o = new Float32Array(16);
+  for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) {
+    let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = s;
+  }
+  return o;
+}
+
+/* ---------------- Shaders ---------------- */
+const BG_VS = `attribute vec2 aP; void main(){ gl_Position = vec4(aP, 0., 1.); }`;
+const BG_FS = `
+uniform vec2 uC; uniform float uR; uniform vec3 uBase, uGlow, uEdge; uniform float uFlash;
+float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main(){
+  float d = length(gl_FragCoord.xy - uC) / uR;
+  vec3 c = uBase + uGlow * exp(-d * d * 1.6) + uEdge * exp(-d * d * .35);
+  c = mix(c, mix(vec3(1., 1., .96), vec3(1., .82, .55), smoothstep(.5, 2.2, d)), uFlash);
+  gl_FragColor = vec4(c + (hash(gl_FragCoord.xy) - .5) / 255., 1.);
+}`;
+
+// Hạt: xoáy vàng -> trái tim
+const HEART_VS = `
+attribute vec3 aHeart; attribute vec4 aSeed; attribute float aKind;
+uniform mat4 uView, uProj;
+uniform float uT, uScale, uYaw, uMorph, uSpin, uRingR, uOpen, uPx, uSize, uDust, uAlpha, uIntro, uRed, uFocus;
+uniform vec3 uRingC, uHeartPos, uCol;
+varying vec4 vCol; varying float vHard;
+void main(){
+  float a = aSeed.x * 6.2832 + uSpin * (.6 + .8 * aSeed.y);
+  float rr = mix(pow(aSeed.z, .6) * 1.05, .58 + .6 * aSeed.z, uOpen);
+  rr *= uRingR * (1. + .09 * sin(a * 2. + uT * 1.9 + aSeed.w * 2.) + .05 * sin(a * 5. - uT * 2.6));
+  vec3 sw = uRingC + vec3(cos(a) * rr, sin(a) * rr * mix(1., 1.28, uOpen), (aSeed.w - .5) * uRingR * .8);
+
+  vec3 h = aHeart + .012 * vec3(sin(uT * 2.3 + aSeed.x * 50.), sin(uT * 1.9 + aSeed.y * 50.), sin(uT * 1.6 + aSeed.z * 50.));
+  float cy = cos(uYaw), sy = sin(uYaw);
+  h = vec3(h.x * cy + h.z * sy, h.y, -h.x * sy + h.z * cy) * uScale + uHeartPos;
+
+  float alpha = uAlpha;
+  vec3 p;
+  if (aKind > .5) {           // bụi: không vào tim, tản ra rồi tắt dần
+    vec3 o = sw - uRingC;
+    vec3 dir = normalize(vec3(o.xy, o.z * .3) + vec3(.001));
+    p = sw + dir * uDust * (1.3 + 2. * aSeed.w) + vec3(0., -uDust * uDust * (.5 + 1.5 * aSeed.z), 0.);
+    alpha *= (1. - uDust) * (.5 + .5 * aSeed.y);
+  } else {
+    float m = clamp((uMorph - aSeed.y * .4) / .6, 0., 1.);
+    m = m * m * (3. - 2. * m);
+    p = mix(sw, h, m);
+  }
+  vec4 v = uView * vec4(p, 1.);
+  float d = max(-v.z, .05);
+  gl_Position = uProj * v;
+
+  float tw = .55 + .45 * sin(uT * (1.3 + 3.2 * aSeed.z) + aSeed.x * 37.);
+  float s = uSize * (.65 + .7 * aSeed.w) * uPx / d;
+  float blur = clamp(abs(1. - uFocus / d) * 1.2, 0., 1.5);
+  s *= 1. + blur;
+  alpha *= mix(1., tw, uRed * .8 + .2) / ((1. + blur) * (1. + blur));
+  if (s < 1.5) { alpha *= s / 1.5; s = 1.5; }
+  gl_PointSize = min(s, 64.);
+  vec3 col = uCol;
+  col = mix(col, mix(vec3(1.), vec3(1., .5, .55), uRed), aSeed.z * .3 * (1. - .6 * uRed));
+  col *= mix(1., .55 + .7 * aSeed.w, uRed);
+  vCol = vec4(col, alpha);
+  vHard = mix(2.2, 3.5, uRed) / (1. + blur * 2.);
+}`;
+const DOT_FS = `
+varying vec4 vCol; varying float vHard;
+void main(){
+  vec2 q = gl_PointCoord * 2. - 1.;
+  float r2 = dot(q, q);
+  if (r2 > 1.) discard;
+  float a = exp(-r2 * vHard) * (1. - r2);
+  gl_FragColor = vec4(vCol.rgb * vCol.a * a, 1.);
+}`;
+
+// Mặt đất hạt
+const GROUND_VS = `
+attribute vec3 aPos; attribute vec2 aSeed;
+uniform mat4 uView, uProj; uniform float uT, uPx, uAlpha, uFocus, uMaxPt; uniform vec3 uCol;
+varying vec4 vCol; varying float vHard;
+void main(){
+  vec3 p = aPos;
+  p.y += .07 * sin(p.x * .45 + uT * .35) * cos(p.z * .3 - uT * .2);
+  vec4 v = uView * vec4(p, 1.);
+  float d = max(-v.z, .05);
+  gl_Position = uProj * v;
+  float s = .022 * (.6 + .8 * aSeed.x) * uPx / d;
+  float a = uAlpha * 1.25 * (.7 + .3 * sin(uT * (.8 + 2. * aSeed.y) + aSeed.x * 40.));
+  a *= smoothstep(.25, 1., d) * (1. - smoothstep(20., 34., d));
+  float blur = clamp((uFocus / d - 1.) * .2, 0., 1.);
+  if (s > uMaxPt) { a *= mix(1., uMaxPt / s, .5); s = uMaxPt; }
+  if (s < 1.6) { a *= s / 1.6; s = 1.6; }
+  gl_PointSize = s;
+  vCol = vec4(uCol * (.75 + .5 * aSeed.y), a);
+  vHard = 2.6 - blur;
+}`;
+
+// Sprite: tim bay, chữ bay, quầng sáng tim (nhiều mức nhòe theo độ sâu)
+const SPRITE_VS = `
+attribute vec3 aPos; attribute vec2 aUv; attribute float aA; attribute float aL;
+uniform mat4 uVP; varying vec2 vUv; varying float vA, vL;
+void main(){ vUv = aUv; vA = aA; vL = aL; gl_Position = uVP * vec4(aPos, 1.); }`;
+const SPRITE_FS = `
+uniform sampler2D uTex; uniform vec3 uTint; uniform float uLevels;
+varying vec2 vUv; varying float vA, vL;
+void main(){
+  float l0 = floor(vL), f = vL - l0, l1 = min(l0 + 1., uLevels - 1.);
+  vec4 c0 = texture2D(uTex, vec2(vUv.x, (l0 + vUv.y) / uLevels));
+  vec4 c1 = texture2D(uTex, vec2(vUv.x, (l1 + vUv.y) / uLevels));
+  vec4 c = mix(c0, c1, f);
+  gl_FragColor = vec4(c.rgb * uTint * vA, 1.);
+}`;
+
+const P_BG = program(BG_VS, BG_FS);
+const P_HEART = program(HEART_VS, DOT_FS);
+const P_GROUND = program(GROUND_VS, DOT_FS);
+// Ảnh bay: vẽ đè thông thường (không cộng sáng) để ảnh hiện rõ
+const PHOTO_FS = `
+uniform sampler2D uTex; uniform vec3 uTint; uniform float uLevels;
+varying vec2 vUv; varying float vA, vL;
+void main(){
+  float l0 = floor(vL), f = vL - l0, l1 = min(l0 + 1., uLevels - 1.);
+  vec4 c0 = texture2D(uTex, vec2(vUv.x, (l0 + vUv.y) / uLevels));
+  vec4 c1 = texture2D(uTex, vec2(vUv.x, (l1 + vUv.y) / uLevels));
+  vec4 c = mix(c0, c1, f);
+  gl_FragColor = vec4(c.rgb * uTint, c.a) * vA;
+}`;
+const P_SPRITE = program(SPRITE_VS, SPRITE_FS);
+const P_PHOTO = program(SPRITE_VS, PHOTO_FS);
+const bgBuf = staticBuffer(new Float32Array([-1, -1, 3, -1, -1, 3]));
+
+/* ---------------- Kích thước & số hạt ---------------- */
+let W = 0, H = 0, DPR = 1, aspect = .56, tanY = .47, proj = null, PX = 1000;
+const D0 = 5.5, D1 = 11.4;                 // khoảng cách camera trước / sau khi lùi
+const GROUND_Y = -1.0;
+const HEART_C = [0, -.1, 0];
+
+function resize() {
+  W = stage.clientWidth || innerWidth; H = stage.clientHeight || innerHeight;
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  const maxPx = 2.6e6;                     // giới hạn số điểm ảnh cho máy yếu / màn hình lớn
+  if (W * H * DPR * DPR > maxPx) DPR = Math.max(1, Math.sqrt(maxPx / (W * H)));
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  gl.viewport(0, 0, cv.width, cv.height);
+  aspect = W / H;
+  tanY = Math.max(1.47 / D0 / aspect, 2.05 / D0); // dọc: tim rộng ~68% màn hình; ngang: cao ~45%
+  proj = perspective(tanY, aspect, .05, 80);
+  PX = (cv.height / 2) / tanY;
+}
+resize();
+addEventListener("resize", resize);
+
+const area = Math.min(2.2, (innerWidth * innerHeight) / (390 * 844));
+const dens = clamp(CONFIG.density, .3, 2) * (reduce ? .7 : 1);
+const N_HEART = Math.round(clamp(8500 * Math.sqrt(area), 6500, 15000) * dens);
+const N_DUST = Math.round(N_HEART * .3);
+const N_GROUND = Math.round(clamp(6500 * Math.sqrt(area), 4800, 10000) * dens);
+
+/* ---------------- Hình trái tim ---------------- */
+// đường viền trái tim, chia đều theo độ dài cung (tránh dồn hạt ở đỉnh & mũi tim)
+const CURVE = (() => {
+  const raw = [], len = [0], out = [], n = 240;
+  for (let i = 0; i <= 2000; i++) {
+    const t = i / 2000 * Math.PI * 2;
+    raw.push([Math.pow(Math.sin(t), 3), (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t)) / 16 + .0625]);
+    if (i) len.push(len[i - 1] + Math.hypot(raw[i][0] - raw[i - 1][0], raw[i][1] - raw[i - 1][1]));
+  }
+  for (let k = 0, j = 0; k < n; k++) {
+    const L = k / n * len[2000];
+    while (len[j + 1] < L) j++;
+    const f = (L - len[j]) / (len[j + 1] - len[j] || 1);
+    out.push([lerp(raw[j][0], raw[j + 1][0], f), lerp(raw[j][1], raw[j + 1][1], f)]);
+  }
+  return out;
+})();
+function inside(x, y) {
+  let c = false;
+  for (let i = 0, j = CURVE.length - 1; i < CURVE.length; j = i++) {
+    const [xi, yi] = CURVE[i], [xj, yj] = CURVE[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeDist(x, y) { let m = 9; for (const [px, py] of CURVE) m = Math.min(m, (px - x) ** 2 + (py - y) ** 2); return Math.sqrt(m); }
+
+function buildHeart() {
+  const n = N_HEART + N_DUST, data = new Float32Array(n * 8);
+  for (let i = 0; i < n; i++) {
+    let x = 0, y = 0, z = 0, kind = i >= N_HEART ? 1 : 0;
+    if (!kind) {
+      if (Math.random() < .11) {              // viền sáng
+        const k = Math.random() * CURVE.length, a = CURVE[k | 0], b = CURVE[((k | 0) + 1) % CURVE.length], f = k % 1;
+        x = lerp(a[0], b[0], f); y = lerp(a[1], b[1], f);
+        const cx = x * .985, cy = (y + .1) * .985 - .1, j = Math.random() * .03; // hơi lùi vào trong
+        x = lerp(x, cx, j / .015 * .5); y = lerp(y, cy, j / .015 * .5);
+        z = (Math.random() * 2 - 1) * .03;
+      } else {
+        do { x = rand(-1, 1); y = rand(-1, .8); } while (!inside(x, y));
+        const e = Math.sqrt(clamp(edgeDist(x, y) / .45, 0, 1));
+        z = (Math.random() * 2 - 1) * .3 * e;
+      }
+    }
+    data.set([x, y, z, Math.random(), Math.random(), Math.random(), Math.random(), kind], i * 8);
+  }
+  return data;
+}
+const heartBuf = staticBuffer(buildHeart());
+
+function buildGround() {
+  const data = new Float32Array(N_GROUND * 5);
+  for (let i = 0; i < N_GROUND; i++) {
+    const z = rand(-30, 12.6);
+    const hw = 1 + (12.6 - z) * Math.max(.3, tanY * aspect) * 1.2;  // rộng dần về phía xa cho vừa khung hình
+    data.set([rand(-hw, hw), GROUND_Y + rand(-.03, .03), z, Math.random(), Math.random()], i * 5);
+  }
+  return data;
+}
+const groundBuf = staticBuffer(buildGround());
+
+/* ---------------- Texture (vẽ bằng canvas 2D) ---------------- */
+const mk = (w, h) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
+const LEVELS = 4, BLURS = [1.2, 5, 11, 20];          // các mức nhòe (độ sâu trường ảnh)
+
+function heartPathAt(g, cx, cy, w) {
+  g.beginPath();
+  CURVE.forEach(([x, y], i) => { const px = cx + x * w / 2, py = cy - (y + .1) * w / 2; i ? g.lineTo(px, py) : g.moveTo(px, py); });
+  g.closePath();
+}
+// vẽ hình đã làm nhòe bằng "bóng" (chạy được trên mọi trình duyệt, kể cả Safari)
+function blurred(g, blur, color, drawFn) {
+  const OFF = 10000;
+  g.save();
+  g.shadowColor = color; g.shadowBlur = blur; g.shadowOffsetX = OFF;
+  g.translate(-OFF, 0);
+  drawFn();
+  g.restore();
+}
+
+function floatHeartTexture() {
+  const S = 128, c = mk(S, S * LEVELS), g = c.getContext("2d");
+  for (let l = 0; l < LEVELS; l++) {
+    const cy = l * S + S / 2, w = S * (l === 3 ? .56 : l === 2 ? .64 : .7);
+    blurred(g, BLURS[l] * S / 128, "#fff", () => { g.fillStyle = "#fff"; heartPathAt(g, S / 2, cy, w); g.fill(); });
+  }
+  return { tex: texture(c), aspect: 1, levels: LEVELS };
+}
+function glowTexture() {
+  const S = 256, c = mk(S, S), g = c.getContext("2d"), w = S / 1.5;
+  blurred(g, 26, "rgba(255,255,255,.75)", () => { g.lineWidth = 10; g.strokeStyle = "#fff"; heartPathAt(g, S / 2, S / 2, w); g.stroke(); });
+  blurred(g, 7, "rgba(255,255,255,.9)", () => { g.lineWidth = 4; g.strokeStyle = "#fff"; heartPathAt(g, S / 2, S / 2, w); g.stroke(); });
+  blurred(g, 30, "rgba(255,255,255,.28)", () => { g.fillStyle = "#fff"; heartPathAt(g, S / 2, S / 2, w * .96); g.fill(); });
+  return { tex: texture(c), aspect: 1, levels: 1 };
+}
+const FONT_PX = 56, TEXT_FONT = `500 ${FONT_PX}px "Roboto Mono", "Courier New", monospace`;
+function textTexture(str) {
+  const m = mk(4, 4).getContext("2d"); m.font = TEXT_FONT;
+  const tw = Math.ceil(m.measureText(str).width), pad = 70;
+  const cw = tw + pad * 2, ch = Math.ceil(FONT_PX * 1.25) + pad * 2;
+  const c = mk(cw, ch * LEVELS), g = c.getContext("2d");
+  const glow = CONFIG.colors.textGlow, core = CONFIG.colors.text;
+  for (let l = 0; l < LEVELS; l++) {
+    const cy = l * ch + ch / 2 + FONT_PX * .05;
+    const txt = (blur, color, alpha) => blurred(g, blur, color, () => {
+      g.font = TEXT_FONT; g.textAlign = "center"; g.textBaseline = "middle"; g.globalAlpha = alpha;
+      g.fillStyle = color; g.fillText(str, cw / 2, cy);
+    });
+    const b = l ? BLURS[l] * 1.1 : 0;
+    txt(24 + b, glow, 1);
+    txt(12 + b, glow, 1);
+    txt(5 + b, glow, .9);
+    txt(l ? b * .8 + 1 : 1.2, core, 1);
+  }
+  return { tex: texture(c), aspect: cw / ch, levels: LEVELS, padH: ch };
+}
+const TEX_HEART = floatHeartTexture();
+const TEX_GLOW = glowTexture();
+const TEXT_LIST = CONFIG.texts.filter(Boolean).concat(CONFIG.date ? [CONFIG.date] : []);
+let TEX_TEXTS = null;
+let textsTried = false;
+function makeTextTextures() { if (textsTried) return; textsTried = true; TEX_TEXTS = TEXT_LIST.map(textTexture); }
+if (document.fonts && document.fonts.load) {
+  Promise.race([document.fonts.load(TEXT_FONT, TEXT_LIST.join("")), new Promise(r => setTimeout(r, 3000))]).then(makeTextTextures, makeTextTextures);
+} else makeTextTextures();
+
+/* ---------------- Ảnh bay (khung polaroid) ---------------- */
+const PHOTO_LIST = (CONFIG.photos || []).filter(Boolean);
+const PHOTO_TEX = [];
+const PH_CW = 300, PH_CH = 340;
+function roundRectPath(g, x, y, w, h, r) {
+  g.beginPath();
+  g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+function polaroidCanvas(img) {
+  const c = mk(PH_CW, PH_CH), g = c.getContext("2d");
+  const pad = 26, fw = PH_CW - pad * 2, fh = PH_CH - pad * 2, inset = 12, ps = fw - inset * 2;
+  const px = pad + inset, py = pad + inset;
+  g.save(); g.shadowColor = CONFIG.colors.textGlow; g.shadowBlur = 22;
+  g.fillStyle = "#fffaf7"; roundRectPath(g, pad, pad, fw, fh, 10); g.fill(); g.restore();
+  g.save(); roundRectPath(g, px, py, ps, ps, 4); g.clip();
+  if (img) {
+    const k = Math.max(ps / img.naturalWidth, ps / img.naturalHeight);
+    const w = img.naturalWidth * k, h = img.naturalHeight * k;
+    g.drawImage(img, px + (ps - w) / 2, py + (ps - h) / 2, w, h);
+  } else {                                   // thiếu ảnh: khung hồng thay thế
+    const gr = g.createLinearGradient(px, py, px + ps, py + ps);
+    gr.addColorStop(0, "#ffc2d3"); gr.addColorStop(1, "#c77be0");
+    g.fillStyle = gr; g.fillRect(px, py, ps, ps);
+    g.fillStyle = "rgba(255,255,255,.9)"; heartPathAt(g, px + ps / 2, py + ps * .44, ps * .36); g.fill();
+    g.font = '700 19px Nunito, sans-serif'; g.textAlign = "center"; g.fillText("Ảnh của bạn", px + ps / 2, py + ps * .8);
+  }
+  g.restore();
+  g.fillStyle = CONFIG.colors.heart; heartPathAt(g, PH_CW / 2, py + ps + (fh - inset - ps) / 2, 18); g.fill();
+  return c;
+}
+function photoTexture(img) {
+  const base = polaroidCanvas(img);
+  const c = mk(PH_CW, PH_CH * LEVELS), g = c.getContext("2d");
+  g.drawImage(base, 0, 0);
+  for (let l = 1; l < LEVELS; l++) {          // nhòe theo độ sâu: thu nhỏ rồi phóng lại
+    const k = 1 + BLURS[l] * .45;
+    const sm = mk(Math.max(8, PH_CW / k | 0), Math.max(8, PH_CH / k | 0));
+    sm.getContext("2d").drawImage(base, 0, 0, sm.width, sm.height);
+    g.drawImage(sm, 0, l * PH_CH, PH_CW, PH_CH);
+  }
+  return { tex: texture(c), aspect: PH_CW / PH_CH, levels: LEVELS };
+}
+PHOTO_LIST.forEach((src, i) => {
+  const img = new Image();
+  const done = ok => {
+    try { PHOTO_TEX[i] = photoTexture(ok ? img : null); }
+    catch (e) { try { PHOTO_TEX[i] = photoTexture(null); } catch (e2) {} }  // ảnh khác nguồn (file://) -> khung thay thế
+  };
+  img.onload = () => done(true);
+  img.onerror = () => done(false);
+  img.src = src;
+});
+
+/* ---------------- Tim & chữ bay ---------------- */
+const Z_MIN = -10, Z_MAX = 6.6;
+const items = [];
+function spawnItem(it, initial) {
+  it.z = it.photo ? rand(-8, 2.5) : rand(Z_MIN, Z_MAX);   // ảnh không bay quá sát camera
+  const dF = Math.max(.6, D1 - it.z);              // độ sâu khi camera đã lùi
+  const hw = dF * tanY * Math.max(aspect, .5) * 1.25 + .3;
+  it.x = rand(-hw, hw);
+  it.y0 = GROUND_Y - .4 - dF * tanY * .55;
+  it.y1 = -.6 + dF * tanY * 1.2 + .6;
+  it.y = initial ? rand(it.y0, it.y1) : it.y0 - rand(0, .5);
+  it.vy = it.photo ? rand(.08, .15) : rand(.11, .26) * (it.text ? .85 : 1);
+  it.ph = rand(0, 6.28); it.sw = rand(.02, .08);
+  it.roll = it.text ? rand(-.22, .22) : rand(-.35, .35);
+  it.vr = rand(-.06, .06);
+  if (it.photo) { it.pi = Math.random() * PHOTO_LIST.length | 0; it.h = rand(.72, .95); it.roll = rand(-.18, .18); }
+  else if (it.text) { it.ti = Math.random() * TEXT_LIST.length | 0; it.h = rand(.13, .19); }
+  else it.h = rand(.15, .3);
+  it.a = rand(.6, 1);
+}
+const nHearts = Math.round(120 * clamp(CONFIG.floatingHearts, 0, 2) * (reduce ? .6 : 1));
+const nTexts = TEXT_LIST.length ? Math.round(55 * clamp(CONFIG.floatingTexts, 0, 2) * (reduce ? .6 : 1)) : 0;
+const nPhotos = PHOTO_LIST.length ? Math.round(clamp(CONFIG.floatingPhotos, 0, 2) * clamp(PHOTO_LIST.length * 3, 8, 16) * (reduce ? .6 : 1)) : 0;
+for (let i = 0; i < nHearts + nTexts; i++) { const it = { text: i >= nHearts, k: Math.max(0, i - nHearts) / Math.max(1, nTexts) }; spawnItem(it, true); items.push(it); }
+for (let i = 0; i < nPhotos; i++) { const it = { photo: true, k: i / Math.max(1, nPhotos) }; spawnItem(it, true); items.push(it); }
+
+const MAXQ = nHearts + nTexts + nPhotos + 4;
+const spriteData = new Float32Array(MAXQ * 4 * 7);
+const spriteBuf = gl.createBuffer();
+const idxBuf = gl.createBuffer();
+(() => {
+  const idx = new Uint16Array(MAXQ * 6);
+  for (let i = 0; i < MAXQ; i++) idx.set([i * 4, i * 4 + 1, i * 4 + 2, i * 4, i * 4 + 2, i * 4 + 3], i * 6);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+})();
+let qCount = 0;
+function pushQuad(c, R, U, w, h, roll, alpha, level) {
+  const cr = Math.cos(roll), sr = Math.sin(roll);
+  const rx = [R[0] * cr + U[0] * sr, R[1] * cr + U[1] * sr, R[2] * cr + U[2] * sr];
+  const ux = [U[0] * cr - R[0] * sr, U[1] * cr - R[1] * sr, U[2] * cr - R[2] * sr];
+  const corners = [[-1, 1, 0, 0], [1, 1, 1, 0], [1, -1, 1, 1], [-1, -1, 0, 1]];
+  let o = qCount * 28;
+  for (const [sx, sy, u, v] of corners) {
+    spriteData[o++] = c[0] + rx[0] * sx * w / 2 + ux[0] * sy * h / 2;
+    spriteData[o++] = c[1] + rx[1] * sx * w / 2 + ux[1] * sy * h / 2;
+    spriteData[o++] = c[2] + rx[2] * sx * w / 2 + ux[2] * sy * h / 2;
+    spriteData[o++] = u; spriteData[o++] = v; spriteData[o++] = alpha; spriteData[o++] = level;
+  }
+  qCount++;
+}
+function flushSprites(t, tint, prog = P_SPRITE) {
+  if (!qCount) return;
+  gl.useProgram(prog.p);
+  gl.bindBuffer(gl.ARRAY_BUFFER, spriteBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, spriteData.subarray(0, qCount * 28), gl.DYNAMIC_DRAW);
+  bindAttribs(prog, spriteBuf, [["aPos", 3], ["aUv", 2], ["aA", 1], ["aL", 1]]);
+  gl.uniformMatrix4fv(prog.u.uVP, false, VP);
+  gl.uniform3fv(prog.u.uTint, tint);
+  gl.uniform1f(prog.u.uLevels, t.levels);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, t.tex);
+  gl.uniform1i(prog.u.uTex, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+  gl.drawElements(gl.TRIANGLES, qCount * 6, gl.UNSIGNED_SHORT, 0);
+  qCount = 0;
+}
+
+/* ---------------- Dòng thời gian ---------------- */
+// 0–0.4s đen · 0.4–3s xoáy hạt vàng · 3–3.7s co thành quả cầu · 3.7–4.6s thành trái tim vàng
+// 4.6–5.6s loé sáng trắng · 5.6–6.4s chuyển đỏ · 7.5s chữ bay xuất hiện · pullBackAt: camera lùi xa
+const START_T = reduce ? 7 : 0;
+let T = START_T, VP = null;
+let running = !CONFIG.startGate;
+const easeIO = x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+let spin = 0;
+
+function frameState(dt) {
+  const t = T;
+  const s = {};
+  // vòng xoáy
+  const rise = smooth(.3, 2.2, t);
+  s.ringC = [0, lerp(-3.6, -.18, rise), 0];
+  const con = easeIO(clamp((t - 3) / .75, 0, 1));
+  s.ringC[1] = lerp(s.ringC[1], -.02, con);
+  s.ringR = lerp(1.15, .4, con);
+  s.open = smooth(1.2, 2.1, t) * (1 - smooth(2.95, 3.4, t));
+  spin += dt * Math.min(9, 2.3 * Math.pow(1.15 / s.ringR, .8));
+  s.spin = spin;
+  s.morph = clamp((t - 3.62) / .75, 0, 1);
+  s.dust = smooth(3.5, 5.8, t);
+  s.scale = lerp(.66, 1, smooth(3.85, 4.6, t));
+  // màu
+  const toWhite = smooth(4.35, 4.85, t), toRed = smooth(5.45, 6.4, t);
+  s.red = toRed;
+  s.col = mix3(mix3(COL.intro, WHITE, toWhite), COL.heart, toRed);
+  s.alpha = (reduce ? 1 : smooth(.35, 1.2, t)) * lerp(lerp(.8, 1.3, smooth(3.7, 4.3, t)), 1.15, toRed);
+  s.flash = reduce ? 0 : smooth(4.5, 4.82, t) * (1 - smooth(5.1, 5.75, t));
+  // nhịp đập nhẹ
+  const bp = (t % 1.25) / 1.25;
+  s.beat = (Math.exp(-Math.pow((bp - .1) / .05, 2)) + .6 * Math.exp(-Math.pow((bp - .3) / .05, 2))) * toRed;
+  // lắc lư & camera
+  const sway = reduce ? 0 : smooth(6, 9, t);
+  s.yaw = sway * (.3 * Math.sin(t * .78) + .08 * Math.sin(t * 1.9));
+  const pull = (CONFIG.pullBackAt > 0 && !reduce) ? easeIO(clamp((t - CONFIG.pullBackAt) / 3.2, 0, 1)) : 0;
+  s.pull = pull;
+  const D = lerp(D0, D1, pull);
+  const camX = sway * (.36 * Math.sin(t * .52 + 1) + .1 * Math.sin(t * 1.3)) * (1 + pull * .8);
+  const camY = lerp(-.47, -.6, pull) + sway * .05 * Math.sin(t * .63);
+  const pitch = lerp(.03, .055, pull);
+  s.eye = [camX, camY, D];
+  s.target = [camX * .35, camY + D * pitch, 0];
+  s.groundCol = mix3(mix3(COL.intro, [1, .85, .65], .3), COL.ground, toRed);
+  s.groundA = smooth(.5, 1.6, t) * lerp(.55, 1, toRed);
+  s.heartsA = smooth(3.15, 4.3, t);
+  s.heartTint = mix3(mix3(COL.intro, [1, 1, 1], .1).map(v => v * .8), COL.floatHeart, toRed);
+  s.textsA = smooth(7.3, 9.6, t);
+  s.photosA = smooth(9.2, 11.8, t);                // ảnh bay xuất hiện sau chữ một chút
+  s.textFrac = lerp(.5, 1, smooth(8, 21, t));      // chữ xuất hiện dày dần
+  return s;
+}
+
+function render(dt) {
+  const s = frameState(dt);
+  // camera
+  const fwd = norm(sub(s.target, s.eye));
+  const R = norm(cross(fwd, [0, 1, 0])), U = cross(R, fwd);
+  const e = s.eye;
+  const view = new Float32Array([R[0], U[0], -fwd[0], 0, R[1], U[1], -fwd[1], 0, R[2], U[2], -fwd[2], 0, -dot(R, e), -dot(U, e), dot(fwd, e), 1]);
+  VP = mul(proj, view);
+  const heartPos = [HEART_C[0], HEART_C[1] + .1, HEART_C[2]]; // aHeart đã có tâm ~ -0.1
+  const focus = dot(sub(HEART_C, e), fwd);
+
+  // vị trí tâm sáng trên màn hình
+  const glowW = lerp(s.ringC[1], HEART_C[1], smooth(3.4, 4.4, T));
+  const pc = (() => { const p = [0, glowW, 0, 1]; const o = [0, 0, 0, 0]; for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[r] += VP[k * 4 + r] * p[k]; return [(o[0] / o[3] * .5 + .5) * cv.width, (o[1] / o[3] * .5 + .5) * cv.height]; })();
+
+  gl.disable(gl.BLEND);
+  gl.useProgram(P_BG.p);
+  bindAttribs(P_BG, bgBuf, [["aP", 2]]);
+  const introGlow = smooth(.4, 2.2, T) * (1 - s.red);
+  const base = mix3([.075, .058, .03].map(v => v * introGlow), COL.background.map(v => v * .28), s.red * (1 - s.pull * .5));
+  const glowC = mix3([.2, .155, .085].map(v => v * introGlow), COL.background, s.red);
+  gl.uniform2f(P_BG.u.uC, pc[0], pc[1]);
+  gl.uniform1f(P_BG.u.uR, cv.height * lerp(lerp(.55, .36, s.red), .3, s.pull));
+  gl.uniform3fv(P_BG.u.uBase, base);
+  gl.uniform3fv(P_BG.u.uGlow, glowC.map(v => v * (1 + s.beat * .12)));
+  gl.uniform3fv(P_BG.u.uEdge, mix3([.06, .045, .02].map(v => v * introGlow), [0, 0, 0], s.red));
+  gl.uniform1f(P_BG.u.uFlash, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.ONE, gl.ONE);
+
+  // mặt đất
+  gl.useProgram(P_GROUND.p);
+  bindAttribs(P_GROUND, groundBuf, [["aPos", 3], ["aSeed", 2]]);
+  gl.uniformMatrix4fv(P_GROUND.u.uView, false, view);
+  gl.uniformMatrix4fv(P_GROUND.u.uProj, false, proj);
+  gl.uniform1f(P_GROUND.u.uT, T);
+  gl.uniform1f(P_GROUND.u.uPx, PX);
+  gl.uniform1f(P_GROUND.u.uAlpha, s.groundA);
+  gl.uniform1f(P_GROUND.u.uFocus, focus);
+  gl.uniform1f(P_GROUND.u.uMaxPt, 7.5 * DPR * clamp(Math.min(W, H) / 390, 1, 2));
+  gl.uniform3fv(P_GROUND.u.uCol, s.groundCol);
+  gl.drawArrays(gl.POINTS, 0, N_GROUND);
+
+  // tim bay, chữ bay & ảnh bay: cập nhật vị trí rồi chia nhóm vẽ
+  const groups = new Map(), photosBack = [], photosFront = [];
+  for (const it of items) {
+    it.y += it.vy * dt * (reduce ? .45 : 1);
+    it.x += Math.sin(T * .4 + it.ph) * it.sw * dt;
+    it.roll += it.vr * dt * .2;
+    if (it.y > it.y1) spawnItem(it, false);
+    let ga = it.photo ? s.photosA * clamp((s.textFrac - it.k) * 12, 0, 1)
+           : it.text ? s.textsA * clamp((s.textFrac - it.k) * 12, 0, 1) : s.heartsA;
+    if (ga <= 0 || (it.text && !TEX_TEXTS) || (it.photo && !PHOTO_TEX[it.pi])) continue;
+    const c = [it.x, it.y, it.z];
+    const d = dot(sub(c, e), fwd);
+    if (d < .45) continue;
+    const coc = Math.abs(1 - focus / d);
+    const level = clamp((coc - .12) * 2.3, 0, LEVELS - 1.001);
+    let a = it.a * ga * smooth(.45, 1.3, d) * (1 - smooth(17, 26, d)) * (1 - level * .1);
+    a *= smooth(it.y0, it.y0 + .8, it.y);
+    if (a < .01) continue;
+    if (it.photo) { (it.z < HEART_C[2] - .3 ? photosBack : photosFront).push([c, it, Math.min(1, a * 1.15), Math.min(level, 2.4), d]); continue; }
+    const key = it.text ? it.ti : -1;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push([c, it, a, level]);
+  }
+  const drawPhotos = list => {
+    if (!list.length) return;
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    list.sort((p, q) => q[4] - p[4]);           // xa vẽ trước, gần vẽ sau
+    for (const [c, it, a, level] of list) {
+      const tex = PHOTO_TEX[it.pi];
+      pushQuad(c, R, U, it.h * tex.aspect, it.h, it.roll, a, level);
+      flushSprites(tex, [1, 1, 1], P_PHOTO);
+    }
+    gl.blendFunc(gl.ONE, gl.ONE);
+  };
+  drawPhotos(photosBack);                       // ảnh phía sau trái tim
+
+  // quầng sáng trái tim
+  const glowA = smooth(3.7, 4.5, T) * lerp(lerp(.75, 1.1, smooth(4.3, 4.9, T)), .85, s.red) * (1 + s.beat * .12);
+  if (glowA > .01) {
+    const sc = s.scale * (1 + s.beat * .012) * 1.5 * lerp(1.12, 1, s.red);
+    const ww = 2 * sc * (.7 + .3 * Math.abs(Math.cos(s.yaw)));
+    pushQuad([HEART_C[0], HEART_C[1] + .0, HEART_C[2]], R, U, ww, 2 * sc, 0, glowA, 0);
+    flushSprites(TEX_GLOW, mix3(mix3(COL.intro, WHITE, smooth(4.35, 4.85, T)), COL.heart.map(v => v * .9), s.red));
+  }
+
+  // hạt trái tim / xoáy
+  gl.useProgram(P_HEART.p);
+  bindAttribs(P_HEART, heartBuf, [["aHeart", 3], ["aSeed", 4], ["aKind", 1]]);
+  const u = P_HEART.u;
+  gl.uniformMatrix4fv(u.uView, false, view);
+  gl.uniformMatrix4fv(u.uProj, false, proj);
+  gl.uniform1f(u.uT, T);
+  gl.uniform1f(u.uScale, s.scale * (1 + s.beat * .012));
+  gl.uniform1f(u.uYaw, s.yaw);
+  gl.uniform1f(u.uMorph, s.morph);
+  gl.uniform1f(u.uSpin, s.spin);
+  gl.uniform1f(u.uRingR, s.ringR);
+  gl.uniform1f(u.uOpen, s.open);
+  gl.uniform1f(u.uPx, PX);
+  gl.uniform1f(u.uSize, .03);
+  gl.uniform1f(u.uDust, s.dust);
+  gl.uniform1f(u.uAlpha, s.alpha);
+  gl.uniform1f(u.uRed, s.red);
+  gl.uniform1f(u.uFocus, focus);
+  gl.uniform3fv(u.uRingC, s.ringC);
+  gl.uniform3fv(u.uHeartPos, heartPos);
+  gl.uniform3fv(u.uCol, s.col);
+  gl.drawArrays(gl.POINTS, 0, s.dust >= 1 ? N_HEART : N_HEART + N_DUST);
+  drawPhotos(photosFront);                      // ảnh phía trước trái tim
+
+  // tim bay & chữ bay (cộng sáng)
+  for (const [key, list] of groups) {
+    const tex = key < 0 ? TEX_HEART : TEX_TEXTS[key];
+    for (const [c, it, a, level] of list) {
+      const h = key < 0 ? it.h : it.h * 1.25 * tex.padH / FONT_PX;  // khung texture lớn hơn chữ (có viền sáng)
+      const w = key < 0 ? h : h * tex.aspect;
+      pushQuad(c, R, U, w, h, it.roll, key < 0 ? a * .62 : a, level);
+    }
+    flushSprites(tex, key < 0 ? s.heartTint : [1, 1, 1]);
+  }
+
+  // loé sáng
+  if (s.flash > .001) {
+    gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
+    gl.blendColor(0, 0, 0, s.flash);
+    gl.useProgram(P_BG.p);
+    bindAttribs(P_BG, bgBuf, [["aP", 2]]);
+    gl.uniform3fv(P_BG.u.uBase, [0, 0, 0]);
+    gl.uniform3fv(P_BG.u.uGlow, [0, 0, 0]);
+    gl.uniform3fv(P_BG.u.uEdge, [0, 0, 0]);
+    gl.uniform1f(P_BG.u.uR, cv.height * .45);
+    gl.uniform1f(P_BG.u.uFlash, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+}
+
+let last = performance.now(), raf = 0;
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (running) T += dt;
+  render(running ? dt : 0);
+  raf = requestAnimationFrame(frame);
+}
+raf = requestAnimationFrame(frame);
+// tạm dừng khi ẩn tab
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) { cancelAnimationFrame(raf); raf = 0; }
+  else if (!raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
+});
+
+/* ---------------- Màn chờ (tuỳ chọn) ---------------- */
+const gate = document.getElementById("phGate");
+if (CONFIG.startGate) {
+  document.getElementById("phGateText").textContent = CONFIG.startGate;
+  gate.classList.remove("hide");
+  const open = () => { if (running) return; running = true; gate.classList.add("hide"); playMusic(); autoFullscreen(); hideHint(); };
+  gate.addEventListener("click", open);
+  gate.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") open(); });
+}
+
+/* ---------------- Nhạc ---------------- */
+const music = document.getElementById("phMusic");
+const hint = document.getElementById("phHint");
+if (CONFIG.music) music.src = CONFIG.music;
+function hideHint() { hint.classList.remove("show"); }
+function playMusic() {
+  if (!CONFIG.music || !music.paused) return;
+  music.play().then(hideHint).catch(() => {});   // bị chặn khi chưa có thao tác chạm -> thử lại ở lần chạm sau
+}
+if (CONFIG.music && CONFIG.musicHint && !CONFIG.startGate) {
+  hint.textContent = CONFIG.musicHint;
+  setTimeout(() => { if (music.paused) hint.classList.add("show"); }, 1800);
+}
+// lần chạm đầu tiên ở bất kỳ đâu sẽ bật nhạc (trình duyệt chỉ cho phát sau thao tác của người xem)
+["pointerdown", "touchend", "keydown"].forEach(ev => document.addEventListener(ev, playMusic, { passive: true }));
+document.addEventListener("pointerdown", hideHint, { passive: true });
+
+/* ---------------- Toàn màn hình: chạm lần đầu để bật, chạm đúp để bật/tắt (iPhone Safari không hỗ trợ) ---------------- */
+const root = document.documentElement;
+const fsSupported = !!(document.fullscreenEnabled || document.webkitFullscreenEnabled);
+const isFullscreen = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+let fsAutoTried = false, lastFsRequest = 0, lastTap = { t: 0, x: 0, y: 0 };
+
+function enterFullscreen() {
+  if (!fsSupported || isFullscreen()) return;
+  lastFsRequest = performance.now();
+  try {
+    const r = root.requestFullscreen ? root.requestFullscreen({ navigationUI: "hide" }) : root.webkitRequestFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function exitFullscreen() {
+  lastFsRequest = performance.now();
+  try {
+    const r = document.exitFullscreen ? document.exitFullscreen() : document.webkitExitFullscreen();
+    if (r && r.catch) r.catch(() => {});
+  } catch (e) {}
+}
+function autoFullscreen() {
+  if (fsAutoTried || !CONFIG.fullscreenOnOpen) return;
+  fsAutoTried = true;
+  enterFullscreen();
+}
+document.addEventListener("click", e => {
+  const now = performance.now();
+  const isDouble = now - lastTap.t < 350 && Math.hypot(e.clientX - lastTap.x, e.clientY - lastTap.y) < 40;
+  lastTap = isDouble ? { t: 0, x: 0, y: 0 } : { t: now, x: e.clientX, y: e.clientY };
+  if (isDouble) {
+    // bỏ qua nếu vừa bật ở cú chạm đầu tiên (tránh bật rồi tắt ngay)
+    if (fsSupported && now - lastFsRequest > 600) isFullscreen() ? exitFullscreen() : enterFullscreen();
+  } else {
+    autoFullscreen();
+  }
+});
+</script>
+</body>
+</html>
